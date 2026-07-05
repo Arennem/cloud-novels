@@ -3,5 +3,6 @@ dist/
 output/
 data/
 .env
+.env.production
 *.log
 .pnpm-store/

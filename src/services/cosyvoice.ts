@@ -1,30 +1,147 @@
 ﻿import type { TtsRequest } from '../schemas/tts.schema.js';
+import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 
+const DASHSCOPE_COSYVOICE_URL = 'https://dashscope.aliyuncs.com/api/v1/services/tts/cosyvoice';
+
+interface CosyVoiceResponse {
+  output?: {
+    speaker_id?: string;
+  };
+}
+
 export class CosyVoiceService {
-  /**
-   * 单段文本合成（低层级 API）
-   */
   async synthesize(params: TtsRequest): Promise<Buffer> {
+    const apiKey = config.DASHSCOPE_API_KEY;
+    if (!apiKey) {
+      throw new Error('DASHSCOPE_API_KEY 未配置');
+    }
+
     logger.info('合成语音', { text: params.text.slice(0, 30), voice: params.voice });
-    // TODO: 调用 DashScope API
-    throw new Error('CosyVoiceService.synthesize 尚未接入 API');
+
+    const body: Record<string, unknown> = {
+      model: 'cosyvoice-v1',
+      input: {
+        text: params.text,
+        voice: params.voice,
+      },
+      parameters: {
+        format: params.format,
+        sample_rate: 24000,
+        speed: params.speed,
+      },
+    };
+
+    if (params.emotion) {
+      (body.parameters as Record<string, unknown>).emotion = params.emotion;
+    }
+
+    const response = await fetch(DASHSCOPE_COSYVOICE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      logger.error('CosyVoice API 调用失败', { status: response.status, error: errText });
+      throw new Error(`CosyVoice API 返回 ${response.status}: ${errText}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    logger.info('合成成功', { size: buffer.length, format: params.format });
+    return buffer;
   }
 
-  /**
-   * 通过 instruct 模式生成一段参考语音并注册为 speaker
-   */
-  async createSpeakerFromInstruct(_baseVoice: string, _promptText: string): Promise<string> {
-    // TODO: 调用 DashScope instruct TTS → 注册 speaker
-    throw new Error('CosyVoiceService.createSpeakerFromInstruct 尚未接入 API');
+  async createSpeakerFromInstruct(baseVoice: string, promptText: string): Promise<string> {
+    const apiKey = config.DASHSCOPE_API_KEY;
+    if (!apiKey) {
+      throw new Error('DASHSCOPE_API_KEY 未配置');
+    }
+
+    logger.info('创建自定义 speaker', { baseVoice, prompt: promptText.slice(0, 40) });
+
+    const body = {
+      model: 'cosyvoice-v1',
+      input: {
+        text: promptText,
+        voice: baseVoice,
+        instruct_text: promptText,
+      },
+      parameters: {
+        format: 'mp3',
+        sample_rate: 24000,
+      },
+    };
+
+    const response = await fetch(DASHSCOPE_COSYVOICE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      logger.error('Instruct speaker 创建失败', { status: response.status, error: errText });
+      logger.warn('回退到基础音色', { baseVoice });
+      return baseVoice;
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const data = (await response.json()) as CosyVoiceResponse;
+      if (data.output?.speaker_id) {
+        logger.info('Instruct speaker 创建成功', { speakerId: data.output.speaker_id });
+        return data.output.speaker_id;
+      }
+    }
+
+    logger.warn('API 未返回 speaker_id，使用 baseVoice 替代');
+    return baseVoice;
   }
 
-  /**
-   * 使用已注册的 speaker ID 合成语音
-   */
-  async synthesizeWithSpeaker(_text: string, _speakerId: string, _format?: string): Promise<Buffer> {
-    // TODO: 使用 speaker ID 调用 DashScope API
-    throw new Error('CosyVoiceService.synthesizeWithSpeaker 尚未接入 API');
+  async synthesizeWithSpeaker(text: string, speakerId: string, format: string = 'mp3'): Promise<Buffer> {
+    const apiKey = config.DASHSCOPE_API_KEY;
+    if (!apiKey) {
+      throw new Error('DASHSCOPE_API_KEY 未配置');
+    }
+
+    logger.info('使用 speaker 合成语音', { text: text.slice(0, 30), speakerId });
+
+    const body = {
+      model: 'cosyvoice-v1',
+      input: {
+        text,
+        voice: speakerId,
+      },
+      parameters: {
+        format,
+        sample_rate: 24000,
+      },
+    };
+
+    const response = await fetch(DASHSCOPE_COSYVOICE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      logger.error('Speaker 合成失败', { status: response.status, error: errText });
+      throw new Error(`Speaker 合成失败 ${response.status}: ${errText}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
   }
 }
 
