@@ -20,7 +20,7 @@ export class CosyVoiceService {
     logger.info('合成语音', { text: params.text.slice(0, 30), voice: params.voice });
 
     const body: Record<string, unknown> = {
-      model: 'cosyvoice-v1',
+      model: config.COSYVOICE_MODEL,
       input: {
         text: params.text,
         voice: params.voice,
@@ -65,7 +65,7 @@ export class CosyVoiceService {
     logger.info('创建自定义 speaker', { baseVoice, prompt: promptText.slice(0, 40) });
 
     const body = {
-      model: 'cosyvoice-v1',
+      model: config.COSYVOICE_MODEL,
       input: {
         text: promptText,
         voice: baseVoice,
@@ -115,7 +115,7 @@ export class CosyVoiceService {
     logger.info('使用 speaker 合成语音', { text: text.slice(0, 30), speakerId });
 
     const body = {
-      model: 'cosyvoice-v1',
+      model: config.COSYVOICE_MODEL,
       input: {
         text,
         voice: speakerId,

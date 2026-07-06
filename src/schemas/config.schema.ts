@@ -9,6 +9,7 @@ export const ConfigSchema = z.object({
   DEFAULT_VOICE:     z.string().default('longxiaochun'),
   MAX_TEXT_LENGTH:   z.coerce.number().default(500),
   LLM_MODEL:         z.string().default('qwen-max'),
+  COSYVOICE_MODEL:   z.string().default('cosyvoice-v3-flash'),
   LOG_LEVEL:         z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
 export type Config = z.infer<typeof ConfigSchema>;
