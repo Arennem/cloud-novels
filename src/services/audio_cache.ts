@@ -17,6 +17,8 @@ export interface ChapterAudioRecord {
   created_at: string;
 }
 
+export type AudioRecordWithNovel = ChapterAudioRecord & { novel_title: string };
+
 /**
  * 计算章节内容的哈希值，用于检测内容是否已变更
  */
@@ -26,6 +28,52 @@ export function computeContentHash(content: string): string {
 
 export class AudioCacheService {
   /**
+   * 按 novel_id 列出该小说所有已缓存的章节音频记录。
+   * 返回结果附带小说标题，按章节标题排序。
+   */
+  listByNovel(novelId: string): AudioRecordWithNovel[] {
+    const db = getDb();
+    const rows = db.prepare(`
+      SELECT a.*, n.title AS novel_title
+      FROM audio_cache a
+      JOIN novels n ON n.id = a.novel_id
+      WHERE a.novel_id = ?
+      ORDER BY a.chapter_title
+    `).all(novelId) as any[];
+
+    return rows as AudioRecordWithNovel[];
+  }
+
+
+  /**
+   * 按章节标题查询音频缓存记录。
+   * 可传入 novel_id 或 novel_title 缩小范围（二选一，不传则全局搜索）。
+   * 支持模糊匹配（LIKE %title%）。
+   */
+  listByChapterTitle(chapterTitle: string, novelId?: string): AudioRecordWithNovel[] {
+    const db = getDb();
+    let sql = `
+      SELECT a.*, n.title AS novel_title
+      FROM audio_cache a
+      JOIN novels n ON n.id = a.novel_id
+    `;
+    const params: any[] = [];
+
+    if (novelId) {
+      sql += ` WHERE a.novel_id = ? AND a.chapter_title LIKE ?`;
+      params.push(novelId, `%${chapterTitle}%`);
+    } else {
+      sql += ` WHERE a.chapter_title LIKE ?`;
+      params.push(`%${chapterTitle}%`);
+    }
+
+    sql += ` ORDER BY n.title, a.chapter_title`;
+
+    const rows = db.prepare(sql).all(...params) as any[];
+    return rows as AudioRecordWithNovel[];
+  }
+
+  /**  /**
    * 按小说 + 章节名查找已缓存的章节音频。
    * 如果内容哈希匹配且文件存在，返回音频 Buffer；否则返回 null。
    * 同时会清理上一轮残留的 .tmp 文件。
@@ -61,7 +109,7 @@ export class AudioCacheService {
     return readFileSync(absPath);
   }
 
-  // ── 增量追加 API ──────────────────────────────────────
+  // ---- 增量追加 API ------------------------------------------------
 
   /**
    * 准备开始合成一个章节。
@@ -169,7 +217,7 @@ export class AudioCacheService {
     return audioBuffer;
   }
 
-  // ── 缓存管理 ──────────────────────────────────────────
+  // ---- 缓存管理 ----------------------------------------------------
 
   clearByNovel(novelId: string): number {
     const db = getDb();
@@ -197,7 +245,7 @@ export class AudioCacheService {
     return result.changes;
   }
 
-  // ── 内部方法 ──────────────────────────────────────────
+  // ---- 内部方法 ----------------------------------------------------
 
   private _resolvePaths(novelId: string, chapterTitle: string, format: string) {
     const ext = format === 'mp3' ? 'mp3' : format === 'wav' ? 'wav' : 'pcm';

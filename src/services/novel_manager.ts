@@ -72,6 +72,49 @@ export class NovelManager {
     return result.changes > 0;
   }
 
+  /**
+   * 持久化章节列表（先删后插，原子事务）
+   */
+  saveChapters(novelId: string, chapters: Array<{ title: string; content: string }>): number {
+    const db = getDb();
+    const insert = db.transaction((items: Array<{ title: string; content: string }>) => {
+      db.prepare('DELETE FROM novel_chapters WHERE novel_id = ?').run(novelId);
+      const stmt = db.prepare(
+        'INSERT INTO novel_chapters (id, novel_id, title, content, sort_order) VALUES (?, ?, ?, ?, ?)',
+      );
+      for (let i = 0; i < items.length; i++) {
+        stmt.run(randomUUID(), novelId, items[i].title, items[i].content, i + 1);
+      }
+    });
+    insert(chapters);
+    logger.info('章节已持久化', { novelId, count: chapters.length });
+    return chapters.length;
+  }
+
+  /**
+   * 按 novel_id 查询章节列表（按 sort_order 排序）
+   */
+  getChapters(novelId: string): Array<{ id: string; title: string; content: string; sortOrder: number }> {
+    const rows = getDb().prepare(
+      'SELECT id, title, content, sort_order FROM novel_chapters WHERE novel_id = ? ORDER BY sort_order',
+    ).all(novelId) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+      sortOrder: r.sort_order,
+    }));
+  }
+
+  /**
+   * 根据小说标题查询章节列表
+   */
+  getChaptersByNovelTitle(title: string): Array<{ id: string; title: string; content: string; sortOrder: number }> | undefined {
+    const novel = this.getByTitle(title);
+    if (!novel) return undefined;
+    return this.getChapters(novel.id);
+  }
+
   private rowToRecord(row: any): NovelRecord {
     return {
       id: row.id,
@@ -83,3 +126,5 @@ export class NovelManager {
 }
 
 export const novelManager = new NovelManager();
+
+

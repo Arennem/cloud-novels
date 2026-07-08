@@ -1,5 +1,6 @@
 ﻿import { z } from 'zod';
 import { AudioFormat } from './common.schema.js';
+import { CharacterPortraitSchema } from './character.schema.js';
 
 export const ChapterSchema = z.object({
   title:   z.string().min(1, '章节标题不能为空'),
@@ -7,6 +8,14 @@ export const ChapterSchema = z.object({
   voice:   z.string().optional(),
   roles:   z.record(z.string()).optional(),
 });
+
+/** 不带 title 的原始章节，用于上传解析后的返回 */
+export const RawChapterSchema = z.object({
+  title:   z.string().min(1, '章节标题不能为空'),
+  content: z.string().min(1, '章节内容不能为空'),
+});
+export type RawChapter = z.infer<typeof RawChapterSchema>;
+
 export type Chapter = z.infer<typeof ChapterSchema>;
 
 export const NovelRequestSchema = z.object({
@@ -18,6 +27,62 @@ export const NovelRequestSchema = z.object({
   character_descriptions: z.record(z.string()).optional(),
 });
 export type NovelRequest = z.infer<typeof NovelRequestSchema>;
+
+/** 合成时可选的角色完整画像覆盖 */
+export const CharacterOverrideMapSchema = z.record(
+  z.string(),
+  CharacterPortraitSchema.partial(),
+);
+export type CharacterOverrideMap = z.infer<typeof CharacterOverrideMapSchema>;
+
+export const ConvertRequestSchema = NovelRequestSchema.extend({
+  character_overrides: CharacterOverrideMapSchema.optional(),
+});
+export type ConvertRequest = z.infer<typeof ConvertRequestSchema>;
+
+// ── 上传接口 ──────────────────────────────────────
+
+export const UploadRequestSchema = z.object({
+  novel_title: z.string().min(1, '小说名称必填'),
+  content:     z.string().min(1, '小说内容不能为空'),
+});
+export type UploadRequest = z.infer<typeof UploadRequestSchema>;
+
+export const UploadResponseSchema = z.object({
+  novel_title:   z.string(),
+  chapters:      z.array(RawChapterSchema),
+  chapter_count: z.number().int().positive(),
+});
+export type UploadResponse = z.infer<typeof UploadResponseSchema>;
+
+// ── 分析接口 ──────────────────────────────────────
+
+export const AnalyzeRequestSchema = z.object({
+  novel_title:           z.string().min(1, '小说名称必填'),
+  chapters:              z.array(ChapterSchema).min(1, '至少需要一章'),
+  character_descriptions: z.record(z.string()).optional(),
+});
+export type AnalyzeRequest = z.infer<typeof AnalyzeRequestSchema>;
+
+// ── 管理接口（ID 通过 body 而非路径参数传递） ────────
+
+export const NovelQuerySchema = z.object({
+  id: z.string().min(1, '小说 ID 不能为空'),
+});
+export type NovelQuery = z.infer<typeof NovelQuerySchema>;
+
+export const CharacterQuerySchema = z.object({
+  novel_id: z.string().min(1, '小说 ID 不能为空'),
+});
+export type CharacterQuery = z.infer<typeof CharacterQuerySchema>;
+
+export const CharacterDeleteSchema = z.object({
+  novel_id:  z.string().min(1, '小说 ID 不能为空'),
+  role_name: z.string().min(1, '角色名不能为空'),
+});
+export type CharacterDelete = z.infer<typeof CharacterDeleteSchema>;
+
+// ── 响应 ──────────────────────────────────────────
 
 export const ChapterResultSchema = z.object({
   title:            z.string(),
@@ -41,3 +106,46 @@ export const NovelResponseSchema = z.object({
   character_analysis: z.array(CharacterAnalysisBriefSchema).optional(),
 });
 export type NovelResponse = z.infer<typeof NovelResponseSchema>;
+
+export const AnalyzeResponseSchema = z.object({
+  characters:       z.array(CharacterPortraitSchema),
+  character_count:  z.number().int(),
+});
+export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>;
+
+
+// ── 章节查询 ────────────────────────────────────
+
+export const ChapterQuerySchema = z.object({
+  novel_title: z.string().optional(),
+  novel_id:    z.string().optional(),
+}).refine((d) => d.novel_title || d.novel_id, {
+  message: 'novel_title 或 novel_id 至少需要提供一个',
+});
+export type ChapterQuery = z.infer<typeof ChapterQuerySchema>;
+
+// ── 音频缓存查询 ──────────────────────────────────
+
+export const NovelAudioQuerySchema = z.object({
+  novel_id:    z.string().optional(),
+  novel_title: z.string().optional(),
+}).refine((d) => d.novel_id || d.novel_title, {
+  message: 'novel_id 或 novel_title 至少需要提供一个',
+});
+export type NovelAudioQuery = z.infer<typeof NovelAudioQuerySchema>;
+
+// ── 按章节名查询音频缓存 ──────────────────────────
+
+export const ChapterAudioQuerySchema = z.object({
+  chapter_title: z.string().min(1, '章节标题不能为空'),
+  novel_id:      z.string().optional(),
+  novel_title:   z.string().optional(),
+}).refine((d) => {
+  // novel_id 和 novel_title 不能同时传，但可以都不传
+  if (d.novel_id && d.novel_title) return false;
+  return true;
+}, {
+  message: 'novel_id 和 novel_title 不能同时提供',
+});
+export type ChapterAudioQuery = z.infer<typeof ChapterAudioQuerySchema>;
+

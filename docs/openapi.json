@@ -1,0 +1,1234 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cloud Novels API",
+    "description": "小说文本转语音服务 — 基于 Fastify + Zod + 阿里云百炼 CosyVoice",
+    "version": "0.1.0"
+  },
+  "components": {
+    "schemas": {}
+  },
+  "paths": {
+    "/novel/upload": {
+      "post": {
+        "summary": "上传文本",
+        "tags": [
+          "novel"
+        ],
+        "description": "上传小说原始文本，自动解析为章节列表",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "novel_title",
+                  "content"
+                ],
+                "properties": {
+                  "novel_title": {
+                    "type": "string",
+                    "description": "小说名称"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "小说文本内容"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "解析成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "解析成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "novel_title": {
+                          "type": "string"
+                        },
+                        "chapters": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer"
+                            },
+                            "pageNum": {
+                              "type": "integer"
+                            },
+                            "pageSize": {
+                              "type": "integer"
+                            },
+                            "list": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel/analyze": {
+      "post": {
+        "summary": "角色分析",
+        "tags": [
+          "novel"
+        ],
+        "description": "对已有章节进行 LLM 角色分析，不含语音合成",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "novel_title",
+                  "chapters"
+                ],
+                "properties": {
+                  "novel_title": {
+                    "type": "string",
+                    "description": "小说名称"
+                  },
+                  "chapters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "章节列表"
+                  },
+                  "character_descriptions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "可选的角色声音描述"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "分析完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "分析完成",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "characters": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel/convert": {
+      "post": {
+        "summary": "合成语音",
+        "tags": [
+          "novel"
+        ],
+        "description": "完整合成流程：角色分析 → 注册声音 → 逐句语音合成",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "novel_title",
+                  "chapters"
+                ],
+                "properties": {
+                  "novel_title": {
+                    "type": "string",
+                    "description": "小说名称"
+                  },
+                  "chapters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "章节列表"
+                  },
+                  "output_format": {
+                    "type": "string",
+                    "enum": [
+                      "wav",
+                      "mp3",
+                      "pcm"
+                    ],
+                    "default": "mp3"
+                  },
+                  "merge": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否合并为单个音频文件"
+                  },
+                  "cache": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "是否使用音频缓存"
+                  },
+                  "character_descriptions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "角色声音描述"
+                  },
+                  "character_overrides": {
+                    "type": "object",
+                    "description": "角色画像覆盖"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "合成任务创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "合成任务创建成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "task_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "task_status": {
+                          "type": "string",
+                          "enum": [
+                            "completed",
+                            "processing"
+                          ]
+                        },
+                        "novel_id": {
+                          "type": "string"
+                        },
+                        "chapters": {
+                          "type": "object"
+                        },
+                        "characters_registered": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "merged_url": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel/audio": {
+      "get": {
+        "summary": "音频缓存查询",
+        "tags": [
+          "novel"
+        ],
+        "description": "查询小说的音频缓存记录",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_id",
+            "required": false,
+            "description": "小说 ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_title",
+            "required": false,
+            "description": "小说名称"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "audio": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel/audio/chapter": {
+      "get": {
+        "summary": "章节音频查询",
+        "tags": [
+          "novel"
+        ],
+        "description": "按章节名查询音频缓存记录",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "chapter_title",
+            "required": true,
+            "description": "章节标题"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_id",
+            "required": false,
+            "description": "小说 ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_title",
+            "required": false,
+            "description": "小说名称"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "audio": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novels": {
+      "get": {
+        "summary": "小说列表",
+        "tags": [
+          "novel"
+        ],
+        "description": "获取所有小说列表",
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "novels": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel": {
+      "get": {
+        "summary": "小说详情",
+        "tags": [
+          "novel"
+        ],
+        "description": "按 ID 查询小说详情",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "description": "小说 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "小说未找到",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "小说未找到",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel/chapters": {
+      "get": {
+        "summary": "章节列表",
+        "tags": [
+          "novel"
+        ],
+        "description": "查询小说的章节列表",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_title",
+            "required": false,
+            "description": "小说名称"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_id",
+            "required": false,
+            "description": "小说 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "chapters": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "未找到小说或无章节记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "未找到小说或无章节记录",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novel/delete": {
+      "post": {
+        "summary": "删除小说",
+        "tags": [
+          "novel"
+        ],
+        "description": "按 ID 删除小说及其相关数据",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "小说 ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "删除成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "novel_id": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "小说未找到",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "小说未找到",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters": {
+      "get": {
+        "summary": "角色列表",
+        "tags": [
+          "character"
+        ],
+        "description": "列出角色列表，可按 novel_id 过滤",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "novel_id",
+            "required": false,
+            "description": "小说 ID（可选）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "characters": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/delete": {
+      "post": {
+        "summary": "删除角色",
+        "tags": [
+          "character"
+        ],
+        "description": "删除指定小说的指定角色",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "novel_id",
+                  "role_name"
+                ],
+                "properties": {
+                  "novel_id": {
+                    "type": "string",
+                    "description": "小说 ID"
+                  },
+                  "role_name": {
+                    "type": "string",
+                    "description": "角色名"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "删除成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "role_name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "角色未找到",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "角色未找到",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tts": {
+      "post": {
+        "summary": "单段 TTS 合成",
+        "tags": [
+          "tts"
+        ],
+        "description": "单段文本语音合成（不经过角色分析管线）",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "合成文本，最多 500 字"
+                  },
+                  "voice": {
+                    "type": "string",
+                    "default": "longxiaochun",
+                    "description": "音色 ID"
+                  },
+                  "speed": {
+                    "type": "number",
+                    "default": 1,
+                    "minimum": 0.5,
+                    "maximum": 2,
+                    "description": "语速倍率"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "wav",
+                      "mp3",
+                      "pcm"
+                    ],
+                    "default": "mp3",
+                    "description": "音频格式"
+                  },
+                  "emotion": {
+                    "type": "string",
+                    "enum": [
+                      "happy",
+                      "sad",
+                      "angry",
+                      "surprise",
+                      "calm",
+                      "default"
+                    ],
+                    "description": "情感"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "合成成功，返回音频二进制流",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "合成成功，返回音频二进制流",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "语音合成服务调用失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "语音合成服务调用失败",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {},
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voices": {
+      "get": {
+        "summary": "音色列表",
+        "tags": [
+          "voice"
+        ],
+        "description": "获取所有内置音色列表",
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "查询成功",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "voices": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer"
+                            },
+                            "list": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            "pageNum": {
+                              "type": "integer"
+                            },
+                            "pageSize": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "健康检查",
+        "tags": [
+          "system"
+        ],
+        "description": "健康检查，返回系统概览",
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "服务正常",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "业务状态码，0 表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "novels_count": {
+                          "type": "integer"
+                        },
+                        "speakers_count": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "errorMsg": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "错误信息，成功时为 null"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "响应时间"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "请求追踪 ID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "开发服务器"
+    }
+  ],
+  "tags": [
+    {
+      "name": "novel",
+      "description": "小说管理 & 合成管线"
+    },
+    {
+      "name": "tts",
+      "description": "单段 TTS 语音合成"
+    },
+    {
+      "name": "voice",
+      "description": "音色管理"
+    },
+    {
+      "name": "character",
+      "description": "角色声音管理"
+    },
+    {
+      "name": "system",
+      "description": "系统 & 健康检查"
+    }
+  ]
+}

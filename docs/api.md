@@ -6,18 +6,121 @@
 
 ## 接口一览
 
-| 方法 | 路径 | 说明 |
+| 方法 | 路径 | 传参方式 | 说明 |
+|---|---|---|---|
+| POST | `/tts` | JSON body | 单段文本合成（流式返回音频） |
+| POST | `/novel/upload` | JSON / multipart | 上传原始文本，自动拆分章节 |
+| POST | `/novel/analyze` | JSON body | 只分析角色画像，不合成语音 |
+| POST | `/novel/convert` | JSON body | 完整流程：分析 → 注册声音 → 合成 |
+| POST | `/novel/delete` | JSON body | 删除小说及其角色声音 |
+| POST | `/characters/delete` | JSON body | 删除角色声音 |
+| GET | `/novels` | — | 列出所有已注册的小说 |
+| GET | `/novel` | query `?id=xxx` | 查询某部小说详情 |
+| GET | `/characters` | query `?novel_id=xxx` 可选 | 列出角色（不带参则全部） |
+| GET | `/voices` | — | 查询可用音色列表 |
+| GET | `/health` | — | 健康检查 |
+
+---
+
+## 典型工作流
+
+```
+上传文本 → 获得章节列表 → 预览角色画像 → 修改/确认 → 完整合成
+    ①                 ②                   ③
+```
+
+> ① `POST /novel/upload`
+> ② `POST /novel/analyze`
+> ③ `POST /novel/convert`
+
+---
+
+## POST /novel/upload
+
+上传原始小说文本，由服务端按章节标题自动拆分。支持两种传参方式。
+
+### JSON body
+
+```jsonc
+{
+  "novel_title": "星辰大海",       // string, 必填
+  "content": "第一章 相遇\n日落西山。\n[林远]你到底是谁？\n\n第二章 真相\n[苏晴]我不会告诉你的。"
+}
+```
+
+### multipart/form-data (文件上传)
+
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| POST | `/tts` | 单段文本合成（流式返回音频） |
-| POST | `/novel/convert` | 批量合成整部小说 |
-| GET | `/novels` | 列出所有已注册的小说 |
-| GET | `/novels/:novelId` | 查询某部小说详情 |
-| DELETE | `/novels/:novelId` | 删除小说及其角色声音 |
-| GET | `/characters` | 列出所有角色声音 |
-| GET | `/novels/:novelId/characters` | 列出某部小说的角色 |
-| DELETE | `/novels/:novelId/characters/:roleName` | 删除角色声音 |
-| GET | `/voices` | 查询可用音色列表 |
-| GET | `/health` | 健康检查 |
+| `novel_title` | text | 小说名称 |
+| `file` | file | .txt 文件，UTF-8 编码，上限 50MB |
+
+### 支持自动识别的章节标题格式
+
+- `第X章 [标题]`（中文数字或阿拉伯数字）
+- `第X节` / `第X部` / `第X集`
+- `# 标题` / `## 标题`（Markdown 标题）
+- 找不到标题时整篇作为 "正文" 一章
+
+### Response
+
+```jsonc
+{
+  "novel_title": "星辰大海",
+  "chapters": [
+    { "title": "第一章 相遇", "content": "日落西山。\n[林远]你到底是谁？" },
+    { "title": "第二章 真相", "content": "[苏晴]我不会告诉你的。" }
+  ],
+  "chapter_count": 2
+}
+```
+
+---
+
+## POST /novel/analyze
+
+只执行大模型角色分析，**不进行语音合成**。适合在合成前预览角色画像，确认后再调 `/novel/convert`。
+
+### Request
+
+```jsonc
+{
+  "novel_title": "星辰大海",                           // string, 必填
+  "chapters": [                                        // array, 至少一章
+    {
+      "title": "第一章 相遇",
+      "content": "日落西山。\n[林远]你到底是谁？\n[苏晴]我不会告诉你的。"
+    }
+  ],
+  "character_descriptions": {                          // object, 可选
+    "林远": "二十二岁青年，沉稳果断",
+    "苏晴": "十九岁少女，活泼俏皮"
+  }
+}
+```
+
+### Response
+
+```jsonc
+{
+  "characters": [
+    {
+      "name": "林远",
+      "gender": "male",
+      "age": "二十二岁",
+      "height": "178cm",
+      "build": "健壮",
+      "personality": ["沉稳", "果断"],
+      "voice_description": "低沉浑厚的青年男声，略带磁性，语气沉稳有力",
+      "speaking_style": "语速中等，吐字清晰，说话干脆利落",
+      "backstory_summary": "小说主角，出身平凡但胸怀大志的年轻人..."
+    }
+  ],
+  "character_count": 2
+}
+```
+
+> 返回每个角色的完整画像，供你在合成前审查或手动调整。如需修改，可在 `/novel/convert` 的 `character_descriptions` 中补充。
 
 ---
 
@@ -50,9 +153,9 @@
 ```jsonc
 // 200
 {
-  "task_id": "a1b2c3d4-e5f6-...",            // 合成任务 ID
-  "status": "completed",                     // pending | processing | completed | failed
-  "novel_id": "b2c3d4e5-f6a7-...",          // 小说内部 UUID
+  "task_id": "a1b2c3d4-e5f6-...",
+  "status": "completed",
+  "novel_id": "b2c3d4e5-f6a7-...",
   "chapters": [
     {
       "title": "第一章 相遇",
@@ -60,32 +163,12 @@
       "url": "/output/chapter_1.mp3"
     }
   ],
-  "characters_registered": ["林远", "苏晴"],  // 本次注册的角色
-  "character_analysis": [                     // 大模型分析的角色画像
+  "characters_registered": ["林远", "苏晴"],
+  "character_analysis": [
     { "name": "林远", "gender": "male",   "voice_description": "低沉浑厚的青年男声" },
     { "name": "苏晴", "gender": "female", "voice_description": "清脆悦耳的少女声" }
   ]
 }
-```
-
-### Zod Schema
-
-```ts
-export const ChapterSchema = z.object({
-  title:   z.string().min(1, '章节标题不能为空'),
-  content: z.string().min(1, '章节内容不能为空'),
-  voice:   z.string().optional(),
-  roles:   z.record(z.string()).optional(),
-});
-
-export const NovelRequestSchema = z.object({
-  chapters:      z.array(ChapterSchema).min(1, '至少需要一章'),
-  output_format: AudioFormat.default('mp3'),
-  merge:         z.boolean().default(false),
-  character_descriptions: z.record(z.string()).optional(),
-}).extend({
-  novel_title: z.string().min(1, '小说名称必填'),
-});
 ```
 
 ---
@@ -115,18 +198,6 @@ Content-Type: audio/mpeg  (或 audio/wav / audio/l16)
 // 音频二进制流
 ```
 
-### Zod Schema
-
-```ts
-export const TtsRequestSchema = z.object({
-  text:     z.string().min(1).max(500),
-  voice:    z.string().default('longxiaochun'),
-  speed:    z.number().min(0.5).max(2.0).default(1.0),
-  format:   z.enum(['wav', 'mp3', 'pcm']).default('mp3'),
-  emotion:  z.enum(['happy', 'sad', 'angry', 'surprise', 'calm', 'default']).optional(),
-});
-```
-
 ---
 
 ## 小说管理
@@ -147,22 +218,17 @@ export const TtsRequestSchema = z.object({
 }
 ```
 
-### GET /novels/:novelId
+### GET /novel
 
 ```jsonc
-// Response
-{
-  "id": "a1b2c3d4-...",
-  "title": "星辰大海",
-  "created_at": "2026-07-05T12:00:00Z",
-  "updated_at": "2026-07-05T12:00:00Z"
-}
+// 200
+{ "id": "a1b2c3d4-...", "title": "星辰大海", "created_at": "...", "updated_at": "..." }
 
 // 404
 { "error": "小说未找到" }
 ```
 
-### DELETE /novels/:novelId
+### POST /novel/delete
 
 ```jsonc
 // 200
@@ -181,7 +247,6 @@ export const TtsRequestSchema = z.object({
 ### GET /characters
 
 ```jsonc
-// Response
 {
   "characters": [
     {
@@ -198,11 +263,11 @@ export const TtsRequestSchema = z.object({
 }
 ```
 
-### GET /novels/:novelId/characters
+### GET /characters
 
 同上，但只返回指定小说的角色。
 
-### DELETE /novels/:novelId/characters/:roleName
+### POST /characters/delete
 
 ```jsonc
 // 200
@@ -221,7 +286,6 @@ export const TtsRequestSchema = z.object({
 查询 CosyVoice 预置音色列表。
 
 ```jsonc
-// Response
 {
   "voices": [
     { "id": "longfei",     "name": "龙飞",   "gender": "male",   "style": "成熟稳重", "language": "zh-CN" },
@@ -243,7 +307,6 @@ export const TtsRequestSchema = z.object({
 ## GET /health
 
 ```jsonc
-// Response
 {
   "status": "ok",
   "timestamp": "2026-07-05T12:00:00Z",
@@ -251,4 +314,8 @@ export const TtsRequestSchema = z.object({
   "speakers_count": 7
 }
 ```
+
+
+
+
 

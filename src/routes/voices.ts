@@ -1,4 +1,6 @@
-﻿import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { routeSchema } from '../swagger-helper.js';
+import { success, paginated } from '../utils/response.js';
 import { VoicesResponseSchema } from '../schemas/voice.schema.js';
 
 const BUILTIN_VOICES = [
@@ -15,7 +17,20 @@ const BUILTIN_VOICES = [
 ];
 
 export async function voicesRoutes(app: FastifyInstance) {
-  app.get('/voices', async (_request, _reply) => {
-    return VoicesResponseSchema.parse({ voices: BUILTIN_VOICES });
+  app.get('/voices', {
+    schema: routeSchema({
+      description: '获取所有内置音色列表',
+      tags: ['voice'],
+      summary: '音色列表',
+      response: { '200': { description: '查询成功', data: {
+        type: 'object', properties: {
+          voices: { type: 'object', properties: { total: { type: 'integer' }, list: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, gender: { type: 'string' }, style: { type: 'string' }, language: { type: 'string' } } } }, pageNum: { type: 'integer' }, pageSize: { type: 'integer' } } },
+        },
+      } } },
+    }),
+  }, async (_request, _reply) => {
+    const voices = VoicesResponseSchema.parse({ voices: BUILTIN_VOICES }).voices;
+    return success({ voices: paginated(voices) });
   });
 }
+

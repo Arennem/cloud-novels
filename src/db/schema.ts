@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS audio_cache (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_audio_cache_novel ON audio_cache(novel_id, chapter_title);
+CREATE TABLE IF NOT EXISTS novel_chapters (
+  id         TEXT PRIMARY KEY,
+  novel_id   TEXT NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+  title      TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_novel_chapters_novel ON novel_chapters(novel_id);
+
 `;
 
 export const MALE_VOICES   = ['longfei', 'longchuan', 'longgang', 'longyu', 'xiaofeng', 'longshuo'];
@@ -62,3 +72,4 @@ export const ALL_VOICES    = [...MALE_VOICES, ...FEMALE_VOICES];
 /** 旁白角色名及固定音色，不经过大模型分析和 CosyVoice speaker 注册 */
 export const NARRATION_ROLE_NAME = '旁白';
 export const NARRATION_VOICE     = 'longxiaochun';
+
