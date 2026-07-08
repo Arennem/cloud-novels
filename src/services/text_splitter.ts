@@ -1,4 +1,4 @@
-﻿export interface TextChunk {
+export interface TextChunk {
   text: string;
   role?: string;
 }

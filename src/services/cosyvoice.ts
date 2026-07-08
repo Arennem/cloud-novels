@@ -1,4 +1,4 @@
-﻿import type { TtsRequest } from '../schemas/tts.schema.js';
+import type { TtsRequest } from '../schemas/tts.schema.js';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 

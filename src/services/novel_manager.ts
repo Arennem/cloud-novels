@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
 import { logger } from '../utils/logger.js';
 

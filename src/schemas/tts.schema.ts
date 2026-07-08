@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 import { AudioFormat, Emotion } from './common.schema.js';
 
 export const TtsRequestSchema = z.object({

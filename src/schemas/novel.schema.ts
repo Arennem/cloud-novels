@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 import { AudioFormat } from './common.schema.js';
 import { CharacterPortraitSchema } from './character.schema.js';
 
@@ -149,3 +149,50 @@ export const ChapterAudioQuerySchema = z.object({
 });
 export type ChapterAudioQuery = z.infer<typeof ChapterAudioQuerySchema>;
 
+
+// ── 手动合成：注册角色声音 ─────────────────────────
+
+export const RegisterSpeakersRequestSchema = z.object({
+  novel_id:    z.string().optional(),
+  novel_title: z.string().optional(),
+  character_descriptions: z.record(z.string()).optional(),
+  character_overrides: CharacterOverrideMapSchema.optional(),
+}).refine((d) => d.novel_id || d.novel_title, {
+  message: 'novel_id 或 novel_title 至少需要提供一个',
+});
+export type RegisterSpeakersRequest = z.infer<typeof RegisterSpeakersRequestSchema>;
+
+// ── 手动合成：按需合成章节音频 ─────────────────────
+
+export const SynthesizeRequestSchema = z.object({
+  novel_id:       z.string().optional(),
+  novel_title:    z.string().optional(),
+  chapter_ids:    z.array(z.string()).optional(),
+  chapter_titles: z.array(z.string()).optional(),
+  all:            z.boolean().default(false),
+  output_format:  AudioFormat.default('mp3'),
+  merge:          z.boolean().default(false),
+  cache:          z.boolean().default(true),
+}).refine((d) => d.novel_id || d.novel_title, {
+  message: 'novel_id 或 novel_title 至少需要提供一个',
+}).refine((d) => d.all || d.chapter_ids || d.chapter_titles, {
+  message: '请指定要合成的章节（chapter_ids、chapter_titles）或设置 all: true',
+});
+export type SynthesizeRequest = z.infer<typeof SynthesizeRequestSchema>;
+
+export const SynthesizeResultSchema = z.object({
+  title:            z.string(),
+  chapter_id:       z.string(),
+  duration_seconds: z.number(),
+  url:              z.string(),
+});
+export type SynthesizeResult = z.infer<typeof SynthesizeResultSchema>;
+
+// ── 重新生成角色声音 ───────────────────────────────
+
+export const RegenerateSpeakerRequestSchema = z.object({
+  novel_id:  z.string().min(1, '小说 ID 不能为空'),
+  role_name: z.string().min(1, '角色名不能为空'),
+  portrait_override: CharacterPortraitSchema.partial().optional(),
+});
+export type RegenerateSpeakerRequest = z.infer<typeof RegenerateSpeakerRequestSchema>;

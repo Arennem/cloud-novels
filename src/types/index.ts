@@ -1,4 +1,4 @@
-﻿// 所有类型从 Zod Schema 自动派生，无需手动维护
+// 所有类型从 Zod Schema 自动派生，无需手动维护
 export type { TtsRequest } from '../schemas/tts.schema.js';
 export type { Chapter, NovelRequest, NovelResponse, ChapterResult, RawChapter, UploadRequest, UploadResponse, AnalyzeRequest, AnalyzeResponse } from '../schemas/novel.schema.js';
 export type { VoiceInfo, VoicesResponse } from '../schemas/voice.schema.js';

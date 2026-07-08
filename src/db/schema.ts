@@ -1,4 +1,4 @@
-﻿export const SCHEMA_SQL = `
+export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS novels (
   id         TEXT PRIMARY KEY,
   title      TEXT NOT NULL UNIQUE,

@@ -1,4 +1,4 @@
-﻿import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 
 export function ensureDir(dir: string): void {

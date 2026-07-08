@@ -1,4 +1,4 @@
-﻿import { config as dotenvConfig } from 'dotenv';
+import { config as dotenvConfig } from 'dotenv';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { ConfigSchema, type Config } from './schemas/config.schema.js';

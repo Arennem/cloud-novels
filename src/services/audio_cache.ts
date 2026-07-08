@@ -1,4 +1,4 @@
-﻿import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { readFileSync, appendFileSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'fs';
 import { join, resolve } from 'path';
 import { config } from '../config.js';

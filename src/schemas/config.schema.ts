@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 
 export const ConfigSchema = z.object({
   DASHSCOPE_API_KEY: z.string().min(1, '阿里云百炼 API Key 必填'),
