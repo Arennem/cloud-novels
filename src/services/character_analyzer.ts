@@ -1,4 +1,4 @@
-import { config } from "../config.js";
+﻿import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { chat } from "./llm.js";
 import type { CharacterAnalysisResult, CharacterPortrait } from "../schemas/character.schema.js";
@@ -139,6 +139,58 @@ export class CharacterAnalyzer {
       voiceParts.push('说话时' + portrait.speaking_style);
     }
     return voiceParts.join("，");
+  }
+  /** 将角色画像映射为合成时的 emotion / speed 参数 */
+  deriveSynthesisParams(portrait: CharacterPortrait): {
+    emotion?: string;
+    speed?: number;
+  } {
+    const result: { emotion?: string; speed?: number } = {};
+
+    // ── personality → emotion ──
+    const emotionMap: [string[], string][] = [
+      [["暴躁", "易怒", "愤怒", "恼怒", "凶狠", "严厉", "冷酷", "威严"], "angry"],
+      [["活泼", "开朗", "欢乐", "乐观", "欢快", "俏皮", "调皮", "爽朗"], "happy"],
+      [["悲伤", "忧郁", "哀伤", "伤感", "多愁善感", "消沉", "凄凉", "悲凉"], "sad"],
+      [["惊讶", "惊奇", "神秘", "诡异", "捉摸不透"], "surprise"],
+      [["温柔", "温和", "宁静", "平和", "淡然", "冷静", "沉着", "沉稳", "慈祥"], "calm"],
+    ];
+
+    if (portrait.personality && portrait.personality.length > 0) {
+      for (const trait of portrait.personality) {
+        for (const [keywords, emotion] of emotionMap) {
+          if (keywords.some((kw) => trait.includes(kw))) {
+            result.emotion = emotion;
+            break;
+          }
+        }
+        if (result.emotion) break;
+      }
+    }
+
+    // ── speaking_style → speed ──
+    if (portrait.speaking_style) {
+      const style = portrait.speaking_style;
+      if (
+        style.includes("缓慢") ||
+        style.includes("慢") ||
+        style.includes("从容") ||
+        style.includes("沉稳") ||
+        style.includes("拖沓")
+      ) {
+        result.speed = 0.85;
+      } else if (
+        style.includes("快速") ||
+        style.includes("快") ||
+        style.includes("急促") ||
+        style.includes("急躁") ||
+        style.includes("活泼")
+      ) {
+        result.speed = 1.15;
+      }
+    }
+
+    return result;
   }
 }
 
