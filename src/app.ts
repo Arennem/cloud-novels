@@ -26,7 +26,10 @@ async function main() {
 
   const app = Fastify({ logger: false });
   await app.register(cors);
-  await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
+  await app.register(multipart, {
+    limits: { fileSize: 50 * 1024 * 1024 },
+    addToBody: true,
+  });
   await app.register(fastifyStatic, {
     root: resolve("./public"),
     prefix: "/",
@@ -113,4 +116,6 @@ async function main() {
 }
 
 main();
+
+
 

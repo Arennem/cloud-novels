@@ -1,6 +1,7 @@
 ﻿import type { FastifyInstance } from "fastify";
 import { routeSchema } from "../swagger-helper.js";
 import { success, fail, paginated } from "../utils/response.js";
+import { parseUploadRequest } from "../utils/request-parser.js";
 import { logger } from "../utils/logger.js";
 import { novelManager } from "../services/novel_manager.js";
 import { textSplitter } from "../services/text_splitter.js";
@@ -19,7 +20,7 @@ export async function novelRoutes(app: FastifyInstance) {
       summary: "上传文本",
       body: {
         type: "object",
-        required: ["novel_title", "content"],
+        required: ["novel_title"],
         properties: {
           novel_title: { type: "string", description: "小说名称" },
           content: { type: "string", description: "小说文本内容" },
@@ -47,36 +48,10 @@ export async function novelRoutes(app: FastifyInstance) {
       },
     }),
   }, async (request) => {
-    const contentType = request.headers["content-type"] ?? "";
-    let novelTitle: string;
-    let content: string;
+    const { fields, fileContent } = await parseUploadRequest(request);
+    const content = fileContent ?? fields["content"] ?? "";
+    const params = UploadRequestSchema.parse({ novel_title: fields["novel_title"], content });
 
-    if (contentType.includes("multipart/form-data")) {
-      const parts = request.parts();
-      const fields: Record<string, string> = {};
-      let fileBuffer: Buffer | null = null;
-
-      for await (const part of parts) {
-        if (part.type === "field") {
-          fields[part.fieldname] = part.value as string;
-        } else if (part.type === "file") {
-          const chunks: Buffer[] = [];
-          for await (const chunk of part.file) {
-            chunks.push(chunk);
-          }
-          fileBuffer = Buffer.concat(chunks);
-        }
-      }
-
-      novelTitle = fields["novel_title"];
-      content = fileBuffer ? fileBuffer.toString("utf-8") : fields["content"] ?? "";
-    } else {
-      const body = request.body as Record<string, unknown>;
-      novelTitle = typeof body["novel_title"] === "string" ? body["novel_title"] : "";
-      content = typeof body["content"] === "string" ? body["content"] : "";
-    }
-
-    const params = UploadRequestSchema.parse({ novel_title: novelTitle, content });
     const chapters = textSplitter.parseChaptersFromText(params.content);
 
     logger.info("上传文本解析完成", {
@@ -209,3 +184,4 @@ export async function novelRoutes(app: FastifyInstance) {
     return success({ novel_id: id });
   });
 }
+

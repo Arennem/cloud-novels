@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 import { AudioFormat } from './common.schema.js';
 import { CharacterPortraitSchema } from './character.schema.js';
 
@@ -113,6 +113,15 @@ export const AnalyzeResponseSchema = z.object({
 });
 export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>;
 
+
+// ── 上传并分析角色 ───────────────────────────────
+
+export const UploadAndAnalyzeRequestSchema = z.object({
+  novel_title:           z.string().min(1, '小说名称必填'),
+  content:               z.string().min(1, '小说内容不能为空'),
+  character_descriptions: z.record(z.string()).optional(),
+});
+export type UploadAndAnalyzeRequest = z.infer<typeof UploadAndAnalyzeRequestSchema>;
 
 // ── 章节查询 ────────────────────────────────────
 
