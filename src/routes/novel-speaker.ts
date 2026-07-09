@@ -10,9 +10,7 @@ import {
   RegenerateSpeakerRequestSchema,
 } from "../schemas/novel.schema.js";
 import { CharacterQuerySchema, CharacterDeleteSchema } from "../schemas/novel.schema.js";
-import { NARRATION_ROLE_NAME } from "../db/schema.js";
 import type { CharacterPortrait } from "../schemas/character.schema.js";
-
 export async function novelSpeakerRoutes(app: FastifyInstance) {
   // ── 角色列表 ──
   app.get("/characters", {
@@ -71,6 +69,78 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     return success({ role_name });
   });
 
+  // ── 角色详情 ──
+  app.get("/characters/detail", {
+    schema: routeSchema({
+      description: "获取单个角色的完整信息，包括角色画像（voice_description / voice_prompt）和音色 ID",
+      tags: ["character"],
+      summary: "角色详情",
+      querystring: {
+        type: "object",
+        required: ["novel_id", "role_name"],
+        properties: {
+          novel_id: { type: "string", description: "小说 ID" },
+          role_name: { type: "string", description: "角色名" },
+        },
+      },
+      response: {
+        "200": { description: "查询成功" },
+        "404": { description: "角色未找到" },
+      },
+    }),
+  }, async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    const { novel_id, role_name } = q;
+    if (!novel_id || !role_name) return reply.status(400).send(fail("novel_id 和 role_name 必填", 400));
+    const speaker = speakerManager.getSpeaker(novel_id, role_name);
+    if (!speaker) return reply.status(404).send(fail("角色未找到", 404));
+    // 返回完整的角色信息，包括 portrait（含 voice_prompt）
+    return success({
+      novel_id: speaker.novelId,
+      role_name: speaker.roleName,
+      base_voice: speaker.baseVoice,
+      speaker_id: speaker.speakerId,
+      description: speaker.description,
+      sample_audio_url: speaker.sampleAudioPath,
+      portrait: speaker.portrait,
+    });
+  });
+
+  // ── 更新角色画像（人工微调） ──
+  app.post("/characters/update", {
+    schema: routeSchema({
+      description: "更新角色画像（如 voice_description / voice_prompt），用于人工微调后重新生成音色。更新不会自动调用 CosyVoice，需再调 regenerate。",
+      tags: ["character"],
+      summary: "更新画像",
+      body: {
+        type: "object",
+        required: ["novel_id", "role_name", "portrait"],
+        properties: {
+          novel_id: { type: "string", description: "小说 ID" },
+          role_name: { type: "string", description: "角色名" },
+          portrait: { type: "object", description: "完整的角色画像，覆盖存储" },
+        },
+      },
+      response: {
+        "200": { description: "更新成功" },
+        "404": { description: "角色未找到" },
+      },
+    }),
+  }, async (request, reply) => {
+    const body = request.body as { novel_id: string; role_name: string; portrait: CharacterPortrait };
+    const { novel_id, role_name } = body;
+    // 检查角色是否存在
+    const existing = speakerManager.getSpeaker(novel_id, role_name);
+    if (!existing) return reply.status(404).send(fail("角色未找到", 404));
+    // 检查 voice_prompt 长度
+    if (body.portrait.voice_prompt && body.portrait.voice_prompt.length > 500) {
+      logger.warn('voice_prompt 超过 500 字符', { length: body.portrait.voice_prompt.length });
+    }
+    const updated = speakerManager.updateSpeakerPortrait(novel_id, role_name, body.portrait);
+    if (!updated) return reply.status(500).send(fail("更新失败", 500));
+    return success({ novel_id, role_name });
+  }),
+
   // ── 注册角色声音 ──
   app.post("/novel/speakers/register", {
     schema: routeSchema({
@@ -127,8 +197,7 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
 
     const existingSpeakers = speakerManager.listSpeakersByNovel(novelId);
     const existingNames = existingSpeakers
-      .map((s) => s.roleName)
-      .filter((n) => n !== NARRATION_ROLE_NAME);
+      .map((s) => s.roleName);
 
     const analysis = await characterAnalyzer.analyze({
       chapters: storedChapters.map((c) => ({ title: c.title, content: c.content })),
@@ -137,12 +206,10 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
 
     const portraitMap = new Map<string, CharacterPortrait>();
     for (const c of analysis.characters) {
-      if (c.name === NARRATION_ROLE_NAME) continue;
       portraitMap.set(c.name, c);
     }
     if (params.character_descriptions) {
       for (const [name, desc] of Object.entries(params.character_descriptions)) {
-        if (name === NARRATION_ROLE_NAME) continue;
         const existing = portraitMap.get(name);
         if (existing) {
           if (!existing.voice_description) existing.voice_description = desc;
@@ -156,7 +223,6 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     }
     if (params.character_overrides) {
       for (const [name, overrides] of Object.entries(params.character_overrides)) {
-        if (name === NARRATION_ROLE_NAME) continue;
         const existing = portraitMap.get(name);
         if (existing) {
           Object.assign(existing, overrides);
@@ -183,8 +249,6 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     });
 
     const registered: string[] = [];
-    const narrationProfile = await speakerManager.getOrCreateSpeaker(novelId, NARRATION_ROLE_NAME);
-    registered.push(NARRATION_ROLE_NAME);
 
     for (const [roleName, portrait] of portraitMap) {
       await speakerManager.getOrCreateSpeaker(novelId, roleName, portrait);
@@ -237,9 +301,6 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     const params = RegenerateSpeakerRequestSchema.parse(request.body);
     const { novel_id, role_name } = params;
 
-    if (role_name === NARRATION_ROLE_NAME) {
-      return reply.status(400).send(fail("旁白使用固定音色，不可重新生成", 400));
-    }
 
     speakerManager.deleteSpeaker(novel_id, role_name);
 

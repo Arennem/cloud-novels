@@ -80,7 +80,7 @@ const systemLines = [
   '}',
   '',
   '注意：',
-  '- voice_description 要具体到音色质感，如“低沉浑厚的青年男声，略带磁性，语气沉稳有力”',
+  '- voice_description 要具体到音色质感，如"低沉浑厚的青年男声，略带磁性，语气沉稳有力"',
   '- 只返回 JSON，不要其他文字',
   '- 如果小说中没有明确提到某个特征，根据台词和上下文合理推断',
 ];
@@ -128,6 +128,10 @@ export class CharacterAnalyzer {
     return text.trim();
   }
 
+  /**
+   * 从角色画像构建发送给声音设计 API 的 prompt 文本，
+   * 并将结果写回 portrait.voice_prompt 以便落库和人工微调。
+   */
   buildVoicePrompt(portrait: CharacterPortrait): string {
     const voiceParts: string[] = [];
     const genderMap: Record<string, string> = { male: "男声", female: "女声", unknown: "声音" };
@@ -138,8 +142,12 @@ export class CharacterAnalyzer {
     if (portrait.speaking_style) {
       voiceParts.push('说话时' + portrait.speaking_style);
     }
-    return voiceParts.join("，");
+    const prompt = voiceParts.join("，");
+    // 写回 portrait，确保精确的 prompt 文本落库
+    portrait.voice_prompt = prompt;
+    return prompt;
   }
+
   /** 将角色画像映射为合成时的 emotion / speed 参数 */
   deriveSynthesisParams(portrait: CharacterPortrait): {
     emotion?: string;

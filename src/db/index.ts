@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+﻿import Database from 'better-sqlite3';
 import { resolve, dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { SCHEMA_SQL } from './schema.js';

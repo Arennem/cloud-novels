@@ -30,6 +30,14 @@ async function main() {
   await app.register(fastifyStatic, {
     root: resolve("./public"),
     prefix: "/",
+    decorateReply: false,
+  });
+
+  // 角色示例音频静态目录（和章节音频分开放）
+  await app.register(fastifyStatic, {
+    root: resolve(config.OUTPUT_DIR, 'speaker-samples'),
+    prefix: "/speaker-samples/",
+    decorateReply: false,
   });
 
   // ── API 文档 ──

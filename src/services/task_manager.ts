@@ -483,12 +483,10 @@ function buildPortraitMap(
 ): Map<string, CharacterPortrait> {
   const map = new Map<string, CharacterPortrait>();
   for (const c of analysis.characters) {
-    if (c.name === NARRATION_ROLE_NAME) continue;
     map.set(c.name, { ...c });
   }
   if (characterDescriptions) {
     for (const [name, desc] of Object.entries(characterDescriptions)) {
-      if (name === NARRATION_ROLE_NAME) continue;
       const existing = map.get(name);
       if (existing) {
         if (!existing.voice_description) existing.voice_description = desc;
@@ -502,7 +500,6 @@ function buildPortraitMap(
   }
   if (characterOverrides) {
     for (const [name, overrides] of Object.entries(characterOverrides)) {
-      if (name === NARRATION_ROLE_NAME) continue;
       const existing = map.get(name);
       if (existing) {
         Object.assign(existing, overrides);
@@ -530,9 +527,6 @@ async function registerSpeakers(
 ): Promise<{ registered: string[]; speakerInfoMap: Map<string, SpeakerInfo> }> {
   const registered: string[] = [];
   const speakerInfoMap = new Map<string, SpeakerInfo>();
-  const narrationProfile = await speakerManager.getOrCreateSpeaker(novelId, NARRATION_ROLE_NAME);
-  speakerInfoMap.set(NARRATION_ROLE_NAME, { speakerId: narrationProfile.speakerId, portrait: null });
-  registered.push(NARRATION_ROLE_NAME);
   for (const [roleName, portrait] of portraitMap) {
     const profile = await speakerManager.getOrCreateSpeaker(novelId, roleName, portrait);
     speakerInfoMap.set(roleName, { speakerId: profile.speakerId, portrait });

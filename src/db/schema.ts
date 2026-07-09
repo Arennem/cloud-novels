@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS speakers (
   description TEXT,
   portrait    TEXT,
   speaker_id  TEXT NOT NULL,
+  sample_audio_path TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(novel_id, role_name)
