@@ -9,7 +9,7 @@ export const convertNovelSchema = routeSchema({
     required: ["novel_title", "chapters"],
     properties: {
       novel_title: { type: "string", description: "小说名称" },
-      chapters: { type: "array", items: { type: "object" }, description: "章节列表" },
+      chapters: { type: "array", items: { type: "object", additionalProperties: true }, description: "章节列表" },
       output_format: { type: "string", enum: ["wav", "mp3", "pcm"], default: "mp3" },
       merge: { type: "boolean", default: false, description: "是否合并为单个音频文件" },
       cache: { type: "boolean", default: true, description: "是否使用音频缓存" },
@@ -102,8 +102,18 @@ export const taskListSchema = routeSchema({
       description: "查询成功",
       data: {
         type: "object",
-        properties: { tasks: { type: "object" } },
+        properties: { tasks: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
+            },
+          }, },
       },
     },
   },
 });
+
+

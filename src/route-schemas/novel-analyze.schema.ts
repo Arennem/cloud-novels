@@ -37,7 +37,7 @@ export const analyzeCharactersSchema = routeSchema({
             type: "object",
             properties: {
               total: { type: "integer" },
-              list: { type: "array", items: { type: "object" } },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
               pageNum: { type: "integer" },
               pageSize: { type: "integer" },
             },
@@ -59,10 +59,29 @@ export const uploadAndAnalyzeSchema = routeSchema({
         type: "object",
         properties: {
           novel_title: { type: "string" },
-          chapters: { type: "object" },
-          characters: { type: "object" },
+          chapters: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
+            },
+          },
+          characters: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
+            },
+          },
         },
       },
     },
   },
 });
+
+
+

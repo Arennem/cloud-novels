@@ -8,6 +8,7 @@ import {
   UploadRequestSchema,
   NovelQuerySchema,
   ChapterQuerySchema,
+  ChapterDetailQuerySchema,
 } from "../schemas/novel.schema.js";
 import { PaginationSchema } from "../schemas/common.schema.js";
 import {
@@ -16,6 +17,7 @@ import {
   novelDetailSchema,
   chapterListSchema,
   deleteNovelSchema,
+  chapterDetailSchema,
 } from "../route-schemas/novel.schema.js";
 
 export async function novelRoutes(app: FastifyInstance) {
@@ -44,11 +46,11 @@ export async function novelRoutes(app: FastifyInstance) {
     });
   });
 
-  // ── 小说列表（分页） ──
+  // ── 小说列表（SQL 层分页） ──
   app.get("/novels", { schema: novelListSchema }, async (request) => {
     const { pageNum, pageSize } = PaginationSchema.parse(request.query);
-    const novels = novelManager.listAll();
-    return success({ novels: paginated(novels, undefined, pageNum, pageSize) });
+    const { list, total } = novelManager.listAll(pageNum, pageSize);
+    return success({ novels: paginated(list, total, pageNum, pageSize) });
   });
 
   // ── 小说详情 ──
@@ -76,6 +78,14 @@ export async function novelRoutes(app: FastifyInstance) {
       return reply.status(404).send(fail("该小说暂无章节记录，请先上传", 404));
     }
     return success({ chapters: paginated(chapters, undefined, pageNum, pageSize) });
+  });
+
+  // ── 章节详情 ──
+  app.get("/novel/chapter/detail", { schema: chapterDetailSchema }, async (request, reply) => {
+    const { chapter_id } = ChapterDetailQuerySchema.parse(request.query);
+    const chapter = novelManager.getChapterById(chapter_id);
+    if (!chapter) return reply.status(404).send(fail("章节未找到", 404));
+    return success(chapter);
   });
 
   // ── 删除小说 ──

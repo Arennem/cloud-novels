@@ -18,7 +18,15 @@ export const novelAudioSchema = routeSchema({
       description: "查询成功",
       data: {
         type: "object",
-        properties: { audio: { type: "object" } },
+        properties: { audio: {
+          type: "object",
+          properties: {
+            total: { type: "integer" },
+            pageNum: { type: "integer" },
+            pageSize: { type: "integer" },
+            list: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+        }, },
       },
     },
   },
@@ -44,8 +52,18 @@ export const chapterAudioSchema = routeSchema({
       description: "查询成功",
       data: {
         type: "object",
-        properties: { audio: { type: "object" } },
+        properties: { audio: {
+          type: "object",
+          properties: {
+            total: { type: "integer" },
+            pageNum: { type: "integer" },
+            pageSize: { type: "integer" },
+            list: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+        }, },
       },
     },
   },
 });
+
+

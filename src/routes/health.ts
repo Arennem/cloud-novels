@@ -6,7 +6,7 @@ import { speakerManager } from "../services/speaker_manager.js";
 
 export async function healthRoutes(app: FastifyInstance) {
   app.get("/health", { schema: healthCheckSchema }, async () => success({
-    novels_count: novelManager.listAll().length,
+    novels_count: novelManager.countAll(),
     speakers_count: speakerManager.listAllSpeakers().length,
   }));
 }

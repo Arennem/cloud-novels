@@ -132,6 +132,11 @@ export const ChapterQuerySchema = z.object({
   message: 'novel_title 或 novel_id 至少需要提供一个',
 });
 export type ChapterQuery = z.infer<typeof ChapterQuerySchema>;
+// ── 章节详情查询 ──────────────────────────────────
+export const ChapterDetailQuerySchema = z.object({
+  chapter_id: z.string().min(1, '章节 ID 不能为空'),
+});
+export type ChapterDetailQuery = z.infer<typeof ChapterDetailQuerySchema>;
 
 // ── 音频缓存查询 ──────────────────────────────────
 

@@ -19,7 +19,15 @@ export const notificationListSchema = routeSchema({
       data: {
         type: "object",
         properties: {
-          notifications: { type: "object" },
+          notifications: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
+            },
+          },
           unread_count: { type: "integer" },
         },
       },
@@ -57,3 +65,5 @@ export const notificationReadAllSchema = routeSchema({
     "200": { description: "操作成功", data: { type: "object", properties: { count: { type: "integer" } } } },
   },
 });
+
+

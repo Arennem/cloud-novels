@@ -1,5 +1,6 @@
-import { randomUUID } from 'crypto';
+﻿import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
+import { DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
 
 export interface NovelRecord {
@@ -7,6 +8,13 @@ export interface NovelRecord {
   title: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaginatedNovels {
+  list: NovelRecord[];
+  total: number;
+  pageNum: number;
+  pageSize: number;
 }
 
 export class NovelManager {
@@ -57,11 +65,25 @@ export class NovelManager {
   }
 
   /**
-   * 列出所有小说
+   * 列出小说（SQL 层分页）
    */
-  listAll(): NovelRecord[] {
-    const rows = getDb().prepare('SELECT * FROM novels ORDER BY created_at DESC').all() as any[];
-    return rows.map((r) => this.rowToRecord(r));
+  listAll(pageNum: number = DEFAULT_PAGE_NUM, pageSize: number = DEFAULT_PAGE_SIZE): PaginatedNovels {
+    const clampedSize = Math.min(Math.max(1, pageSize), MAX_PAGE_SIZE);
+    const clampedPage = Math.max(1, pageNum);
+    const offset = (clampedPage - 1) * clampedSize;
+
+    const db = getDb();
+    const total = (db.prepare('SELECT COUNT(*) AS cnt FROM novels').get() as any).cnt;
+    const rows = db.prepare('SELECT * FROM novels ORDER BY created_at DESC LIMIT ? OFFSET ?').all(clampedSize, offset) as any[];
+
+    return { list: rows.map((r) => this.rowToRecord(r)), total, pageNum: clampedPage, pageSize: clampedSize };
+  }
+
+  /**
+   * 统计小说总数
+   */
+  countAll(): number {
+    return (getDb().prepare('SELECT COUNT(*) AS cnt FROM novels').get() as any).cnt;
   }
 
   /**
@@ -94,22 +116,67 @@ export class NovelManager {
   /**
    * 按 novel_id 查询章节列表（按 sort_order 排序）
    */
-  getChapters(novelId: string): Array<{ id: string; title: string; content: string; sortOrder: number }> {
-    const rows = getDb().prepare(
+  getChapters(novelId: string): Array<{ id: string; title: string; content: string; sortOrder: number; audioStatus: number }> {
+    const db = getDb();
+
+    // 获取章节列表
+    const rows = db.prepare(
       'SELECT id, title, content, sort_order FROM novel_chapters WHERE novel_id = ? ORDER BY sort_order',
     ).all(novelId) as any[];
+
+    // 获取已有音频缓存的章节（已生成）
+    const cachedChapters = new Set(
+      (db.prepare('SELECT chapter_title FROM audio_cache WHERE novel_id = ?').all(novelId) as any[])
+        .map(r => r.chapter_title)
+    );
+
+    // 获取每个章节最新一次任务的状态
+    const taskStatuses = db.prepare(`
+      SELECT tc.chapter_title, tc.status
+      FROM task_chapters tc
+      JOIN synthesis_tasks st ON st.id = tc.task_id
+      WHERE st.novel_id = ?
+        AND tc.id = (
+          SELECT tc2.id FROM task_chapters tc2
+          JOIN synthesis_tasks st2 ON st2.id = tc2.task_id
+          WHERE st2.novel_id = ? AND tc2.chapter_title = tc.chapter_title
+          ORDER BY tc2.created_at DESC
+          LIMIT 1
+        )
+    `).all(novelId, novelId) as any[];
+
+    const taskStatusMap = new Map(taskStatuses.map(r => [r.chapter_title, r.status]));
+
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
       content: r.content,
       sortOrder: r.sort_order,
+      audioStatus: cachedChapters.has(r.title) ? 1
+        : (() => {
+            const taskStatus = taskStatusMap.get(r.title);
+            if (!taskStatus) return 0;
+            return (['pending', 'annotating', 'synthesizing', 'merging'].includes(taskStatus)) ? 2 : 3;
+          })(),
     }));
+  }
+  /**
+   * 按 chapter_id 查询单章详情
+   */
+  getChapterById(id: string): { id: string; novelId: string; title: string; content: string; sortOrder: number } | undefined {
+    const row = getDb().prepare(
+      'SELECT id, novel_id, title, content, sort_order FROM novel_chapters WHERE id = ?',
+    ).get(id) as any;
+    if (!row) return undefined;
+    return {
+      id: row.id, novelId: row.novel_id, title: row.title, content: row.content, sortOrder: row.sort_order,
+    };
   }
 
   /**
    * 根据小说标题查询章节列表
    */
-  getChaptersByNovelTitle(title: string): Array<{ id: string; title: string; content: string; sortOrder: number }> | undefined {
+  getChaptersByNovelTitle(title: string): Array<{ id: string; title: string; content: string; sortOrder: number; audioStatus: number }> | undefined {
     const novel = this.getByTitle(title);
     if (!novel) return undefined;
     return this.getChapters(novel.id);

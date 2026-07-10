@@ -17,7 +17,7 @@ export const uploadNovelSchema = routeSchema({
               total: { type: "integer" },
               pageNum: { type: "integer" },
               pageSize: { type: "integer" },
-              list: { type: "array", items: { type: "object" } },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
             },
           },
         },
@@ -42,7 +42,17 @@ export const novelListSchema = routeSchema({
       description: "查询成功",
       data: {
         type: "object",
-        properties: { novels: { type: "object" } },
+        properties: {
+          novels: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
+            },
+          },
+        },
       },
     },
   },
@@ -83,7 +93,26 @@ export const chapterListSchema = routeSchema({
       description: "查询成功",
       data: {
         type: "object",
-        properties: { chapters: { type: "object" } },
+        properties: { chapters: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', description: '章节 ID' },
+                    title: { type: 'string', description: '章节标题' },
+                    sortOrder: { type: 'integer', description: '排序序号' },
+                    audioStatus: { type: 'integer', description: '音频状态: 0=未生成, 1=已生成, 2=生成中, 3=生成失败' },
+                  },
+                },
+              },
+            },
+          }, },
       },
     },
     "404": { description: "未找到小说或无章节记录" },
@@ -109,3 +138,24 @@ export const deleteNovelSchema = routeSchema({
     "404": { description: "小说未找到" },
   },
 });
+export const chapterDetailSchema = routeSchema({
+  description: "按章节 ID 查询章节详细内容",
+  tags: ["novel"],
+  summary: "章节详情",
+  querystring: {
+    type: "object",
+    required: ["chapter_id"],
+    properties: {
+      chapter_id: { type: "string", description: "章节 ID" },
+    },
+  },
+  response: {
+    "200": { description: "查询成功" },
+    "404": { description: "章节未找到" },
+  },
+});
+
+
+
+
+

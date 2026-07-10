@@ -17,7 +17,15 @@ export const characterListSchema = routeSchema({
       description: "查询成功",
       data: {
         type: "object",
-        properties: { characters: { type: "object" } },
+        properties: { characters: {
+            type: "object",
+            properties: {
+              total: { type: "integer" },
+              pageNum: { type: "integer" },
+              pageSize: { type: "integer" },
+              list: { type: "array", items: { type: "object", additionalProperties: true } },
+            },
+          }, },
       },
     },
   },
@@ -106,7 +114,7 @@ export const registerSpeakersSchema = routeSchema({
         properties: {
           novel_id: { type: "string" },
           characters_registered: { type: "array", items: { type: "string" } },
-          character_analysis: { type: "array", items: { type: "object" } },
+          character_analysis: { type: "array", items: { type: "object", additionalProperties: true } },
           chapters_available: { type: "integer" },
         },
       },
@@ -142,3 +150,5 @@ export const regenerateSpeakerSchema = routeSchema({
     },
   },
 });
+
+
