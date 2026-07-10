@@ -1,7 +1,13 @@
 ﻿import type { FastifyInstance } from "fastify";
-import { routeSchema } from "../swagger-helper.js";
 import { success, paginated } from "../utils/response.js";
 import { getDb } from "../db/index.js";
+import { PaginationSchema } from "../schemas/common.schema.js";
+import {
+  notificationListSchema,
+  notificationReadSchema,
+  notificationReadAllSchema,
+} from "../route-schemas/notifications.schema.js";
+
 interface NotificationRow {
   id: string;
   novel_id: string;
@@ -13,37 +19,14 @@ interface NotificationRow {
   is_read: number;
   created_at: string;
 }
+
 export async function notificationRoutes(app: FastifyInstance) {
-  // ── 查通知列表 ──
-  app.get("/notifications", {
-    schema: routeSchema({
-      description: "查询通知列表，可按小说筛选，支持未读过滤",
-      tags: ["system"],
-      summary: "通知列表",
-      querystring: {
-        type: "object",
-        properties: {
-          novel_id: { type: "string", description: "小说 ID（可选）" },
-          unread_only: { type: "boolean", default: false, description: "是否仅查未读" },
-          limit: { type: "integer", default: 50, description: "返回条数" },
-        },
-      },
-      response: {
-        "200": {
-          description: "查询成功",
-          data: {
-            type: "object",
-            properties: {
-              notifications: { type: "object" },
-              unread_count: { type: "integer" },
-            },
-          },
-        },
-      },
-    }),
-  }, async (request) => {
-    const q = request.query as { novel_id?: string; unread_only?: string; limit?: string };
+  // ── 查通知列表（分页） ──
+  app.get("/notifications", { schema: notificationListSchema }, async (request) => {
+    const q = request.query as { novel_id?: string; unread_only?: string; pageNum?: string; pageSize?: string };
     const db = getDb();
+    const { pageNum, pageSize } = PaginationSchema.parse(request.query);
+
     let where = "WHERE 1=1";
     const params: unknown[] = [];
     if (q.novel_id) {
@@ -53,11 +36,19 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (q.unread_only === "true" || q.unread_only === "1") {
       where += " AND is_read = 0";
     }
-    const limit = q.limit ? parseInt(q.limit) : 50;
-    params.push(limit);
+
+    // 总数查询
+    const countRow = db.prepare(
+      `SELECT COUNT(*) as cnt FROM notifications ${where}`
+    ).get(...params) as { cnt: number };
+
+    // 分页数据查询
+    const offset = (pageNum - 1) * pageSize;
+    const dataParams = [...params, pageSize, offset];
     const rows = db.prepare(
-      `SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT ?`
-    ).all(...params) as NotificationRow[];
+      `SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...dataParams) as NotificationRow[];
+
     // 未读计数
     let unreadWhere = "WHERE is_read = 0";
     const unreadParams: unknown[] = [];
@@ -68,6 +59,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     const unreadRow = db.prepare(
       `SELECT COUNT(*) as cnt FROM notifications ${unreadWhere}`
     ).get(...unreadParams) as { cnt: number };
+
     const notifications = rows.map((r) => ({
       id: r.id,
       novel_id: r.novel_id,
@@ -79,51 +71,23 @@ export async function notificationRoutes(app: FastifyInstance) {
       is_read: r.is_read === 1,
       created_at: r.created_at,
     }));
+
     return success({
-      notifications: paginated(notifications),
+      notifications: paginated(notifications, countRow.cnt, pageNum, pageSize),
       unread_count: unreadRow.cnt,
     });
   });
+
   // ── 标记单条已读 ──
-  app.post("/notifications/read", {
-    schema: routeSchema({
-      description: "标记指定通知为已读",
-      tags: ["system"],
-      summary: "标记已读",
-      body: {
-        type: "object",
-        required: ["id"],
-        properties: {
-          id: { type: "string", description: "通知 ID" },
-        },
-      },
-      response: {
-        "200": { description: "操作成功", data: { type: "object", properties: { id: { type: "string" } } } },
-      },
-    }),
-  }, async (request) => {
+  app.post("/notifications/read", { schema: notificationReadSchema }, async (request) => {
     const { id } = request.body as { id: string };
     const db = getDb();
     db.prepare("UPDATE notifications SET is_read = 1 WHERE id = ?").run(id);
     return success({ id });
   });
+
   // ── 标记全部已读 ──
-  app.post("/notifications/read-all", {
-    schema: routeSchema({
-      description: "标记某小说的全部通知为已读",
-      tags: ["system"],
-      summary: "全部已读",
-      body: {
-        type: "object",
-        properties: {
-          novel_id: { type: "string", description: "小说 ID（可选，不传则标记全部）" },
-        },
-      },
-      response: {
-        "200": { description: "操作成功", data: { type: "object", properties: { count: { type: "integer" } } } },
-      },
-    }),
-  }, async (request) => {
+  app.post("/notifications/read-all", { schema: notificationReadAllSchema }, async (request) => {
     const { novel_id } = request.body as { novel_id?: string };
     const db = getDb();
     const now = new Date().toISOString();

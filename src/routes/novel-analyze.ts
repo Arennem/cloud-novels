@@ -1,7 +1,6 @@
 ﻿import type { FastifyInstance } from "fastify";
-import { routeSchema } from "../swagger-helper.js";
 import { parseUploadRequest } from "../utils/request-parser.js";
-import { success, paginated } from "../utils/response.js";
+import { success, fail, paginated } from "../utils/response.js";
 import { logger } from "../utils/logger.js";
 import { speakerManager } from "../services/speaker_manager.js";
 import { novelManager } from "../services/novel_manager.js";
@@ -11,57 +10,13 @@ import { textSplitter } from "../services/text_splitter.js";
 import { UploadAndAnalyzeRequestSchema } from "../schemas/novel.schema.js";
 import { NARRATION_ROLE_NAME } from "../db/schema.js";
 import type { CharacterPortrait } from "../schemas/character.schema.js";
+import {
+  analyzeCharactersSchema,
+  uploadAndAnalyzeSchema,
+} from "../route-schemas/novel-analyze.schema.js";
 
 export async function novelAnalyzeRoutes(app: FastifyInstance) {
-  app.post("/novel/analyze", {
-    schema: routeSchema({
-      description: "对已有章节进行 LLM 角色分析，不含语音合成",
-      tags: ["novel"],
-      summary: "角色分析",
-      body: {
-        type: "object",
-        required: ["novel_title", "chapters"],
-        properties: {
-          novel_title: { type: "string", description: "小说名称" },
-          chapters: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                title: { type: "string" },
-                content: { type: "string" },
-              },
-            },
-            description: "章节列表",
-          },
-          character_descriptions: {
-            type: "object",
-            additionalProperties: { type: "string" },
-            description: "可选的角色声音描述，key 为角色名，value 为声音特征描述",
-          },
-        },
-      },
-      response: {
-        "200": {
-          description: "分析完成",
-          data: {
-            type: "object",
-            properties: {
-              characters: {
-                type: "object",
-                properties: {
-                  total: { type: "integer" },
-                  list: { type: "array", items: { type: "object" } },
-                  pageNum: { type: "integer" },
-                  pageSize: { type: "integer" },
-                },
-              },
-            },
-          },
-        },
-      },
-    }),
-  }, async (request) => {
+  app.post("/novel/analyze", { schema: analyzeCharactersSchema }, async (request) => {
     const params = AnalyzeRequestSchema.parse(request.body);
 
     logger.info("开始独立角色分析", {
@@ -127,37 +82,13 @@ export async function novelAnalyzeRoutes(app: FastifyInstance) {
 
 
   // ── 上传并分析角色（一站式） ──
-  app.post("/novel/upload-and-analyze", {
-    schema: routeSchema({
-      description: "上传小说文本并立即进行角色分析，一步完成",
-      tags: ["novel"],
-      summary: "上传并分析角色",
-      body: {
-        type: "object",
-        required: ["novel_title"],
-        properties: {
-          novel_title: { type: "string", description: "小说名称" },
-          content: { type: "string", description: "小说文本内容" },
-          character_descriptions: { type: "object", additionalProperties: { type: "string" }, description: "可选的角色声音描述" },
-        },
-      },
-      response: {
-        "200": {
-          description: "上传并分析成功",
-          data: {
-            type: "object",
-            properties: {
-              novel_title: { type: "string" },
-              chapters: { type: "object" },
-              characters: { type: "object" },
-            },
-          },
-        },
-      },
-    }),
-  }, async (request) => {
+  app.post("/novel/upload-and-analyze", { schema: uploadAndAnalyzeSchema }, async (request, reply) => {
+    console.log("request.body", request.body);
     const { fields, fileContent } = await parseUploadRequest(request);
     const content = fileContent ?? fields["content"] ?? "";
+    if (!content) {
+      return reply.status(422).send(fail("请提供小说内容（JSON 的 content 字段或 multipart 的 file 字段）", 422));
+    }
     let charDescriptions: Record<string, string> | undefined;
     if (fields["character_descriptions"]) {
       try { charDescriptions = JSON.parse(fields["character_descriptions"]); } catch {}
@@ -234,4 +165,3 @@ export async function novelAnalyzeRoutes(app: FastifyInstance) {
     });
   });
 }
-

@@ -28,7 +28,7 @@ async function main() {
   await app.register(cors);
   await app.register(multipart, {
     limits: { fileSize: 50 * 1024 * 1024 },
-    addToBody: true,
+    attachFieldsToBody: true,
   });
   await app.register(fastifyStatic, {
     root: resolve("./public"),
@@ -116,6 +116,9 @@ async function main() {
 }
 
 main();
+
+
+
 
 
 

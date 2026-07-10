@@ -1,5 +1,4 @@
 ﻿import type { FastifyInstance } from "fastify";
-import { routeSchema } from "../swagger-helper.js";
 import { success, fail, paginated } from "../utils/response.js";
 import { logger } from "../utils/logger.js";
 import { speakerManager } from "../services/speaker_manager.js";
@@ -10,59 +9,31 @@ import {
   RegenerateSpeakerRequestSchema,
 } from "../schemas/novel.schema.js";
 import { CharacterQuerySchema, CharacterDeleteSchema } from "../schemas/novel.schema.js";
+import { PaginationSchema } from "../schemas/common.schema.js";
 import type { CharacterPortrait } from "../schemas/character.schema.js";
+import {
+  characterListSchema,
+  characterDeleteSchema as charDeleteRouteSchema,
+  characterDetailSchema,
+  characterUpdateSchema,
+  registerSpeakersSchema,
+  regenerateSpeakerSchema,
+} from "../route-schemas/novel-speaker.schema.js";
+
 export async function novelSpeakerRoutes(app: FastifyInstance) {
-  // ── 角色列表 ──
-  app.get("/characters", {
-    schema: routeSchema({
-      description: "列出角色列表，可按 novel_id 过滤",
-      tags: ["character"],
-      summary: "角色列表",
-      querystring: {
-        type: "object",
-        properties: {
-          novel_id: { type: "string", description: "小说 ID（可选，不传则返回全部角色）" },
-        },
-      },
-      response: {
-        "200": {
-          description: "查询成功",
-          data: {
-            type: "object",
-            properties: { characters: { type: "object" } },
-          },
-        },
-      },
-    }),
-  }, async (request) => {
+  // ── 角色列表（分页） ──
+  app.get("/characters", { schema: characterListSchema }, async (request) => {
     const q = request.query as Record<string, string>;
+    const { pageNum, pageSize } = PaginationSchema.parse(request.query);
     if (q.novel_id) {
       const { novel_id } = CharacterQuerySchema.parse(q);
-      return success({ characters: paginated(speakerManager.listSpeakersByNovel(novel_id)) });
+      return success({ characters: paginated(speakerManager.listSpeakersByNovel(novel_id), undefined, pageNum, pageSize) });
     }
-    return success({ characters: paginated(speakerManager.listAllSpeakers()) });
+    return success({ characters: paginated(speakerManager.listAllSpeakers(), undefined, pageNum, pageSize) });
   });
 
   // ── 删除角色 ──
-  app.post("/characters/delete", {
-    schema: routeSchema({
-      description: "删除指定小说的指定角色",
-      tags: ["character"],
-      summary: "删除角色",
-      body: {
-        type: "object",
-        required: ["novel_id", "role_name"],
-        properties: {
-          novel_id: { type: "string", description: "小说 ID" },
-          role_name: { type: "string", description: "角色名" },
-        },
-      },
-      response: {
-        "200": { description: "删除成功", data: { type: "object", properties: { role_name: { type: "string" } } } },
-        "404": { description: "角色未找到" },
-      },
-    }),
-  }, async (request, reply) => {
+  app.post("/characters/delete", { schema: charDeleteRouteSchema }, async (request, reply) => {
     const { novel_id, role_name } = CharacterDeleteSchema.parse(request.body);
     const deleted = speakerManager.deleteSpeaker(novel_id, role_name);
     if (!deleted) return reply.status(404).send(fail("角色未找到", 404));
@@ -70,25 +41,7 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
   });
 
   // ── 角色详情 ──
-  app.get("/characters/detail", {
-    schema: routeSchema({
-      description: "获取单个角色的完整信息，包括角色画像（voice_description / voice_prompt）和音色 ID",
-      tags: ["character"],
-      summary: "角色详情",
-      querystring: {
-        type: "object",
-        required: ["novel_id", "role_name"],
-        properties: {
-          novel_id: { type: "string", description: "小说 ID" },
-          role_name: { type: "string", description: "角色名" },
-        },
-      },
-      response: {
-        "200": { description: "查询成功" },
-        "404": { description: "角色未找到" },
-      },
-    }),
-  }, async (request, reply) => {
+  app.get("/characters/detail", { schema: characterDetailSchema }, async (request, reply) => {
     const q = request.query as Record<string, string>;
     const { novel_id, role_name } = q;
     if (!novel_id || !role_name) return reply.status(400).send(fail("novel_id 和 role_name 必填", 400));
@@ -107,26 +60,7 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
   });
 
   // ── 更新角色画像（人工微调） ──
-  app.post("/characters/update", {
-    schema: routeSchema({
-      description: "更新角色画像（如 voice_description / voice_prompt），用于人工微调后重新生成音色。更新不会自动调用 CosyVoice，需再调 regenerate。",
-      tags: ["character"],
-      summary: "更新画像",
-      body: {
-        type: "object",
-        required: ["novel_id", "role_name", "portrait"],
-        properties: {
-          novel_id: { type: "string", description: "小说 ID" },
-          role_name: { type: "string", description: "角色名" },
-          portrait: { type: "object", description: "完整的角色画像，覆盖存储" },
-        },
-      },
-      response: {
-        "200": { description: "更新成功" },
-        "404": { description: "角色未找到" },
-      },
-    }),
-  }, async (request, reply) => {
+  app.post("/characters/update", { schema: characterUpdateSchema }, async (request, reply) => {
     const body = request.body as { novel_id: string; role_name: string; portrait: CharacterPortrait };
     const { novel_id, role_name } = body;
     // 检查角色是否存在
@@ -134,51 +68,15 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     if (!existing) return reply.status(404).send(fail("角色未找到", 404));
     // 检查 voice_prompt 长度
     if (body.portrait.voice_prompt && body.portrait.voice_prompt.length > 500) {
-      logger.warn('voice_prompt 超过 500 字符', { length: body.portrait.voice_prompt.length });
+      logger.warn("voice_prompt 超过 500 字符", { length: body.portrait.voice_prompt.length });
     }
     const updated = speakerManager.updateSpeakerPortrait(novel_id, role_name, body.portrait);
     if (!updated) return reply.status(500).send(fail("更新失败", 500));
     return success({ novel_id, role_name });
-  }),
+  });
 
   // ── 注册角色声音 ──
-  app.post("/novel/speakers/register", {
-    schema: routeSchema({
-      description: "从已存储的章节中通过 LLM 分析角色，注册所有角色声音到 CosyVoice。这是手动流程的第一步，需先上传小说文本。",
-      tags: ["novel"],
-      summary: "注册角色声音",
-      body: {
-        type: "object",
-        properties: {
-          novel_id: { type: "string", description: "小说 ID（与 novel_title 二选一）" },
-          novel_title: { type: "string", description: "小说名称（与 novel_id 二选一）" },
-          character_descriptions: {
-            type: "object",
-            additionalProperties: { type: "string" },
-            description: "可选的角色声音描述",
-          },
-          character_overrides: {
-            type: "object",
-            description: "可选的角色画像覆盖",
-          },
-        },
-      },
-      response: {
-        "200": {
-          description: "注册完成",
-          data: {
-            type: "object",
-            properties: {
-              novel_id: { type: "string" },
-              characters_registered: { type: "array", items: { type: "string" } },
-              character_analysis: { type: "array", items: { type: "object" } },
-              chapters_available: { type: "integer" },
-            },
-          },
-        },
-      },
-    }),
-  }, async (request, reply) => {
+  app.post("/novel/speakers/register", { schema: registerSpeakersSchema }, async (request, reply) => {
     const params = RegisterSpeakersRequestSchema.parse(request.body);
 
     let novelId = params.novel_id;
@@ -268,36 +166,7 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
   });
 
   // ── 重新生成角色声音 ──
-  app.post("/novel/speakers/regenerate", {
-    schema: routeSchema({
-      description: "删除并重新生成指定角色的声音。适用于对当前音色不满意时重新生成。",
-      tags: ["novel"],
-      summary: "重新生成角色声音",
-      body: {
-        type: "object",
-        required: ["novel_id", "role_name"],
-        properties: {
-          novel_id: { type: "string", description: "小说 ID" },
-          role_name: { type: "string", description: "角色名" },
-          portrait_override: { type: "object", description: "可选的角色画像覆盖" },
-        },
-      },
-      response: {
-        "200": {
-          description: "重新生成成功",
-          data: {
-            type: "object",
-            properties: {
-              novel_id: { type: "string" },
-              role_name: { type: "string" },
-              base_voice: { type: "string" },
-              speaker_id: { type: "string" },
-            },
-          },
-        },
-      },
-    }),
-  }, async (request, reply) => {
+  app.post("/novel/speakers/regenerate", { schema: regenerateSpeakerSchema }, async (request, reply) => {
     const params = RegenerateSpeakerRequestSchema.parse(request.body);
     const { novel_id, role_name } = params;
 
@@ -342,4 +211,3 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     });
   });
 }
-
