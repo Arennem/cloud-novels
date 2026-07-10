@@ -98,11 +98,7 @@ export const registerSpeakersSchema = routeSchema({
       character_descriptions: {
         type: "object",
         additionalProperties: { type: "string" },
-        description: "可选的角色声音描述",
-      },
-      character_overrides: {
-        type: "object",
-        description: "可选的角色画像覆盖",
+        description: "可选的角色声音描述，key 为角色名，value 为声音特征描述",
       },
     },
   },
@@ -152,3 +148,30 @@ export const regenerateSpeakerSchema = routeSchema({
 });
 
 
+
+
+export const generateCharactersSchema = routeSchema({
+  description: "根据小说 ID 从已存储章节中通过 LLM 分析生成角色画像（含对话粗筛，不含声音注册）。",
+  tags: ["character"],
+  summary: "从小说生成角色",
+  body: {
+    type: "object",
+    required: ["novel_id"],
+    properties: {
+      novel_id: { type: "string", description: "小说 ID" },
+    },
+  },
+  response: {
+    "200": {
+      description: "生成成功",
+      data: {
+        type: "object",
+        properties: {
+          novel_id: { type: "string" },
+          character_count: { type: "integer" },
+          characters: { type: "array", items: { type: "object", additionalProperties: true } },
+        },
+      },
+    },
+  },
+});

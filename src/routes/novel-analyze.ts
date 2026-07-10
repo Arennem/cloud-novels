@@ -38,7 +38,8 @@ export async function novelAnalyzeRoutes(app: FastifyInstance) {
         .filter((n) => n !== NARRATION_ROLE_NAME);
     }
 
-    const analysis = await characterAnalyzer.analyze({
+    const analysis = await characterAnalyzer.analyzeByExtraction({
+      novelId: (novel?.id) ?? undefined,
       chapters: params.chapters,
       existingCharacters: existingNames,
     });
@@ -123,7 +124,8 @@ export async function novelAnalyzeRoutes(app: FastifyInstance) {
       .map((s) => s.roleName)
       .filter((n) => n !== NARRATION_ROLE_NAME);
 
-    const analysis = await characterAnalyzer.analyze({
+    const analysis = await characterAnalyzer.analyzeByExtraction({
+      novelId: novel.id,
       chapters: chapters.map((c) => ({ title: c.title, content: c.content })),
       existingCharacters: existingNames,
     });

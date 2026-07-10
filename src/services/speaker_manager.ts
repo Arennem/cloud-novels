@@ -281,6 +281,41 @@ export class SpeakerManager {
     if (FEMALE_VOICES.includes(baseVoice)) return '用温柔的女声';
     return '用自然的声音';
   }
+
+  /**
+   * 仅保存角色画像到 speakers 表，不生成声音。
+   * speaker_id 用空字符串占位，后续注册声音时再覆盖。
+   * 如果角色已存在，只更新 portrait/description。
+   */
+  saveSpeakerPortraitOnly(novelId: string, roleName: string, portrait: CharacterPortrait): boolean {
+    const key = this.cacheKey(novelId, roleName);
+    const db = getDb();
+    const now = new Date().toISOString();
+    const portraitJson = JSON.stringify(portrait);
+
+    const existing = this.getSpeaker(novelId, roleName);
+    if (existing) {
+      // 更新已有记录
+      db.prepare([
+        "UPDATE speakers SET portrait = ?, description = ?, updated_at = ?",
+        "WHERE novel_id = ? AND role_name = ?"
+      ].join(" ")).run(portraitJson, portrait.voice_description ?? null, now, novelId, roleName);
+      this.inMemoryCache.delete(key);
+      logger.info("角色画像已更新（仅画像，无声音）", { novelId, roleName });
+      return true;
+    }
+
+    // 插入新记录：不带 speaker_id，用空字符串占位
+    const id = [novelId.slice(0, 8), roleName].join("-") + "-noid";
+    db.prepare([
+      "INSERT INTO speakers (id, novel_id, role_name, base_voice, description, portrait, speaker_id, created_at, updated_at)",
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ].join(" ")).run(id, novelId, roleName, "pending", portrait.voice_description ?? null, portraitJson, "", now, now);
+    this.inMemoryCache.delete(key);
+    logger.info("角色画像已保存（仅画像，无声音）", { novelId, roleName });
+    return true;
+  }
+
   private rowToProfile(row: SpeakerRow): SpeakerProfile {
     let portrait: CharacterPortrait | null = null;
     if (row.portrait) {

@@ -3,7 +3,7 @@ import { logger } from "../utils/logger.js";
 import { chat } from "./llm.js";
 import type { CharacterAnalysisResult, CharacterPortrait } from "../schemas/character.schema.js";
 import { CharacterAnalysisResultSchema } from "../schemas/character.schema.js";
-import { CHARACTER_ANALYZER_PROMPT, ROLE_REGEX } from '../constants/index.js';
+import { CHARACTER_ANALYZER_PROMPT, CHARACTER_EXTRACT_PROMPT, ROLE_REGEX } from '../constants/index.js';
 
 
 // ── 文本压缩：只保留对话行及紧邻上下文 ────────────────
@@ -51,10 +51,15 @@ function buildUserPrompt(chapters: ChapterBlock[]): string {
 export interface CharacterAnalysisRequest {
   chapters: { title: string; content: string }[];
   existingCharacters?: string[];
+  /** 小说 ID，传值时启用任务锁，防止同一小说重复分析 */
+  novelId?: string;
 }
 
 
 export class CharacterAnalyzer {
+  /** 正在分析中的小说 novel_id 集合 */
+  static pendingNovels = new Set<string>();
+
   async analyze(params: CharacterAnalysisRequest): Promise<CharacterAnalysisResult> {
     logger.info("开始大模型角色分析", {
       chapters: params.chapters.length,
@@ -83,6 +88,160 @@ export class CharacterAnalyzer {
       logger.error("角色分析异常", { error: String(err) });
       return { characters: [] };
     }
+  }
+
+
+
+  /**
+   * 两步角色分析：
+   * 1. 从章节文本中提取所有角色名
+   * 2. 对每个角色单独生成详细画像
+   * 避免一次性把所有章节文本都塞给 LLM。
+   */
+  async analyzeByExtraction(params: CharacterAnalysisRequest): Promise<CharacterAnalysisResult> {
+    const novelId = params.novelId;
+    if (novelId) {
+      if (CharacterAnalyzer.pendingNovels.has(novelId)) {
+        logger.warn("该小说正在分析中，跳过重复请求", { novelId });
+        return { characters: [] };
+      }
+      CharacterAnalyzer.pendingNovels.add(novelId);
+    }
+    try {
+      logger.info("开始两步角色分析", {
+        chapters: params.chapters.length,
+        existingCharacters: params.existingCharacters?.length ?? 0,
+      });
+
+      // 第 1 步：提取角色名
+      const names = await this.extractCharacterNames(params.chapters);
+      if (names.length === 0) {
+        logger.warn("未提取到任何角色名");
+        return { characters: [] };
+      }
+      logger.info("角色名提取完成", { names });
+
+      // 过滤已有角色
+      let finalNames = names;
+      if (params.existingCharacters && params.existingCharacters.length > 0) {
+        const existing = new Set(params.existingCharacters);
+        finalNames = names.filter((n) => !existing.has(n));
+      }
+
+      // 第 2 步：逐个生成角色画像
+      const characters: CharacterPortrait[] = [];
+      for (const name of finalNames) {
+        logger.info("开始生成角色画像", { name });
+        try {
+          const portrait = await this.analyzeSingleCharacter(name, params.chapters);
+          if (portrait) {
+            characters.push(portrait);
+          }
+        } catch (err) {
+          logger.error("单个角色画像生成失败", { name, error: String(err) });
+        }
+      }
+
+      logger.info("两步角色分析完成", { count: characters.length });
+      return { characters };
+    } finally {
+      if (novelId) CharacterAnalyzer.pendingNovels.delete(novelId);
+    }
+  }
+
+  private async extractCharacterNames(chapters: { title: string; content: string }[]): Promise<string[]> {
+    const compressed = buildUserPrompt(chapters);
+    try {
+      const content = await chat({
+        system: CHARACTER_EXTRACT_PROMPT,
+        user: compressed,
+        temperature: 0.1,
+        maxTokens: 1024,
+      });
+      if (!content) return [];
+
+      const jsonStr = this.extractJson(content);
+      const parsed = JSON.parse(jsonStr);
+      const names: string[] = parsed.character_names ?? parsed.characters?.map((c: any) => c.name) ?? [];
+      return names.filter((n: string) => n !== "旁白");
+    } catch (err) {
+      logger.error("角色名提取异常", { error: String(err) });
+      // Fallback: 从文本中直接提取 [角色名] 标记
+      const nameSet = new Set<string>();
+      for (const ch of chapters) {
+        const lines = ch.content.split("\n");
+        for (const line of lines) {
+          const match = line.match(ROLE_REGEX);
+          if (match && match[1] !== "旁白") {
+            nameSet.add(match[1]);
+          }
+        }
+      }
+      return [...nameSet];
+    }
+  }
+
+  /**
+   * 第 2 步：为单个角色生成详细画像。
+   * 只提取该角色的对话行和相关上下文，减少 token 消耗。
+   */
+  private async analyzeSingleCharacter(
+    name: string,
+    chapters: { title: string; content: string }[],
+  ): Promise<CharacterPortrait | null> {
+    const prompt = this.buildSingleCharacterPrompt(name, chapters);
+    try {
+      const content = await chat({
+        system: CHARACTER_ANALYZER_PROMPT,
+        user: prompt,
+        temperature: 0.3,
+        maxTokens: 2048,
+      });
+      if (!content) return null;
+
+      const jsonStr = this.extractJson(content);
+      const result = CharacterAnalysisResultSchema.parse(JSON.parse(jsonStr));
+      return result.characters[0] ?? null;
+    } catch (err) {
+      logger.error("单个角色分析异常", { name, error: String(err) });
+      return null;
+    }
+  }
+
+  /**
+   * 为单个角色构建 prompt，只保留该角色的对话行和相关上下文。
+   */
+  private buildSingleCharacterPrompt(
+    name: string,
+    chapters: { title: string; content: string }[],
+  ): string {
+    const parts: string[] = [];
+    const roleTag = "[" + name + "]";
+
+    for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i];
+      const lines = ch.content.split("\n");
+      const relevantLines: string[] = [];
+
+      for (let j = 0; j < lines.length; j++) {
+        const line = lines[j];
+        if (line.includes(roleTag)) {
+          // 保留该角色的对话行及其上下各一行
+          if (j > 0) relevantLines.push(lines[j - 1]);
+          relevantLines.push(line);
+          if (j < lines.length - 1) relevantLines.push(lines[j + 1]);
+        }
+      }
+
+      if (relevantLines.length > 0) {
+        parts.push("【第" + (i + 1) + "章 " + ch.title + "】");
+        parts.push(...relevantLines);
+      }
+    }
+
+    parts.push("");
+    parts.push("请分析以上文本中角色【" + name + "】的详细特征，严格按照 JSON 格式输出。");
+    return parts.join("\n");
   }
 
   private extractJson(text: string): string {

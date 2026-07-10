@@ -6,6 +6,7 @@
  * POST /characters/delete            → 删除角色。
  * POST /novel/speakers/register      → 分析章节 → 注册声音（走 CosyVoice clone）。
  * POST /novel/speakers/regenerate    → 重新生成指定角色的声音（可覆盖画像）。
+ * POST /characters/generate         → 根据小说 ID 从已存储章节中通过 LLM 分析生成角色画像（含对话粗筛，不含声音注册）。
  */
 import type { FastifyInstance } from "fastify";
 import { success, fail, paginated } from "../utils/response.js";
@@ -17,9 +18,10 @@ import {
   RegisterSpeakersRequestSchema,
   RegenerateSpeakerRequestSchema,
 } from "../schemas/novel.schema.js";
-import { CharacterQuerySchema, CharacterDeleteSchema } from "../schemas/novel.schema.js";
+import { CharacterQuerySchema, CharacterDeleteSchema, GenerateCharactersRequestSchema } from "../schemas/novel.schema.js";
 import { PaginationSchema } from "../schemas/common.schema.js";
 import type { CharacterPortrait } from "../schemas/character.schema.js";
+import { NARRATION_ROLE_NAME } from "../db/schema.js";
 import {
   characterListSchema,
   characterDeleteSchema as charDeleteRouteSchema,
@@ -27,6 +29,7 @@ import {
   characterUpdateSchema,
   registerSpeakersSchema,
   regenerateSpeakerSchema,
+  generateCharactersSchema,
 } from "../route-schemas/novel-speaker.schema.js";
 
 export async function novelSpeakerRoutes(app: FastifyInstance) {
@@ -106,7 +109,8 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     const existingNames = existingSpeakers
       .map((s) => s.roleName);
 
-    const analysis = await characterAnalyzer.analyze({
+    const analysis = await characterAnalyzer.analyzeByExtraction({
+      novelId: novelId,
       chapters: storedChapters.map((c) => ({ title: c.title, content: c.content })),
       existingCharacters: existingNames,
     });
@@ -186,7 +190,8 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
     let portrait: CharacterPortrait | undefined;
 
     if (storedChapters.length > 0) {
-      const analysis = await characterAnalyzer.analyze({
+      const analysis = await characterAnalyzer.analyzeByExtraction({
+      novelId: novel_id,
         chapters: storedChapters.map((c) => ({ title: c.title, content: c.content })),
       });
       portrait = analysis.characters.find((c) => c.name === role_name);
@@ -217,6 +222,48 @@ export async function novelSpeakerRoutes(app: FastifyInstance) {
       role_name: profile.roleName,
       base_voice: profile.baseVoice,
       speaker_id: profile.speakerId,
+    });
+  });
+
+
+  // ── LLM 生成角色（不含声音） ──
+  app.post("/characters/generate", { schema: generateCharactersSchema }, async (request, reply) => {
+    const params = GenerateCharactersRequestSchema.parse(request.body);
+
+    const chapters = novelManager.getChapters(params.novel_id);
+    if (chapters.length === 0) {
+      return reply.status(404).send(fail("该小说暂无章节记录，请先上传", 404));
+    }
+
+    logger.info("从存储加载章节，开始两步角色分析", {
+      novel_id: params.novel_id,
+      chapters: chapters.length,
+    });
+
+    const result = await characterAnalyzer.analyzeByExtraction({
+      novelId: params.novel_id,
+      chapters: chapters.map((c) => ({ title: c.title, content: c.content })),
+    });
+
+    // 落库：逐个保存角色画像（不含声音）
+    const saved: string[] = [];
+    for (const c of result.characters) {
+      if (c.name === NARRATION_ROLE_NAME) continue;
+      speakerManager.saveSpeakerPortraitOnly(params.novel_id, c.name, c);
+      saved.push(c.name);
+    }
+
+    logger.info("角色生成完成并落库", {
+      novel_id: params.novel_id,
+      character_count: result.characters.length,
+      saved: saved.length,
+    });
+
+    return success({
+      novel_id: params.novel_id,
+      character_count: result.characters.length,
+      characters_saved: saved,
+      characters: result.characters,
     });
   });
 }

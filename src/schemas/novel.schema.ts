@@ -210,3 +210,18 @@ export const RegenerateSpeakerRequestSchema = z.object({
   portrait_override: CharacterPortraitSchema.partial().optional(),
 });
 export type RegenerateSpeakerRequest = z.infer<typeof RegenerateSpeakerRequestSchema>;
+
+
+// ── LLM 生成角色（不含声音接口） ──────────────────────
+
+export const GenerateCharactersRequestSchema = z.object({
+  novel_id: z.string().min(1, "小说 ID 不能为空"),
+});
+export type GenerateCharactersRequest = z.infer<typeof GenerateCharactersRequestSchema>;
+
+export const GenerateCharactersResponseSchema = z.object({
+  novel_id: z.string(),
+  characters: z.array(CharacterPortraitSchema),
+  character_count: z.number().int(),
+});
+export type GenerateCharactersResponse = z.infer<typeof GenerateCharactersResponseSchema>;
