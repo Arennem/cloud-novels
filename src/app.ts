@@ -85,6 +85,11 @@ async function main() {
     return reply.status(500).send(fail("服务器内部错误", 500));
   });
 
+  // ── 404 处理器 ──
+  app.setNotFoundHandler((_request, reply) => {
+    return reply.status(404).send(fail("请求的接口不存在", 404));
+  });
+
   // ── 路由 ──
   await app.register(ttsRoutes);
   await app.register(novelRoutes);
@@ -116,6 +121,7 @@ async function main() {
 }
 
 main();
+
 
 
 

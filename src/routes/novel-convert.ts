@@ -1,4 +1,11 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 音频合成任务 ──
+ * POST /novel/convert     → 提交完整合成任务（异步）：角色分析 → 注册声音 → 逐句合成。
+ * POST /novel/synthesize   → 提交按需合成任务（异步）：仅对已有角色做音频合成。
+ * GET  /task/:id           → 查询异步任务详情。
+ * GET  /tasks              → 查询某小说的任务列表（分页）。
+ */
+import type { FastifyInstance } from "fastify";
 import { success, fail, paginated } from "../utils/response.js";
 import { logger } from "../utils/logger.js";
 import { novelManager } from "../services/novel_manager.js";

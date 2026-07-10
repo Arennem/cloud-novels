@@ -1,4 +1,8 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 单段 TTS 合成 ──
+ * POST /tts → 直接对一段文本做语音合成（不经过角色分析管线），供手动测试或独立调用。
+ */
+import type { FastifyInstance } from "fastify";
 import { ttsSchema } from "../route-schemas/tts.schema.js";
 import { TtsRequestSchema } from "../schemas/tts.schema.js";
 import { cosyvoiceService } from "../services/cosyvoice.js";

@@ -1,4 +1,9 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 音频缓存查询 ──
+ * GET /novel/audio          → 分页查询小说级别的音频缓存记录。
+ * GET /novel/audio/chapter  → 按章节标题查询音频缓存记录。
+ */
+import type { FastifyInstance } from "fastify";
 import { success, fail, paginated } from "../utils/response.js";
 import { audioCache } from "../services/audio_cache.js";
 import { novelManager } from "../services/novel_manager.js";

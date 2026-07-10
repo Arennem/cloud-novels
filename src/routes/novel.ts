@@ -1,4 +1,9 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 小说 CRUD ──
+ * 上传原始文本 → 解析章节、查询小说/章节列表/详情、删除小说。
+ * 所有接口以 /novel 或 /novels 开头。
+ */
+import type { FastifyInstance } from "fastify";
 import { success, fail, paginated } from "../utils/response.js";
 import { parseUploadRequest } from "../utils/request-parser.js";
 import { logger } from "../utils/logger.js";

@@ -1,4 +1,8 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 内置音色查询 ──
+ * GET /voices → 分页返回系统内置的所有基础音色列表（硬编码，不可编辑）。
+ */
+import type { FastifyInstance } from "fastify";
 import { voicesListSchema } from "../route-schemas/voices.schema.js";
 import { success, paginated } from "../utils/response.js";
 import { VoicesResponseSchema } from "../schemas/voice.schema.js";

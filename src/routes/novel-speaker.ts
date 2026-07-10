@@ -1,4 +1,13 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 角色 / Speaker 管理 ──
+ * GET  /characters                   → 角色列表（分页，可按 novel_id 过滤）。
+ * GET  /characters/detail            → 角色详情，含 portrait / voice_prompt。
+ * POST /characters/update            → 手动微调角色画像。
+ * POST /characters/delete            → 删除角色。
+ * POST /novel/speakers/register      → 分析章节 → 注册声音（走 CosyVoice clone）。
+ * POST /novel/speakers/regenerate    → 重新生成指定角色的声音（可覆盖画像）。
+ */
+import type { FastifyInstance } from "fastify";
 import { success, fail, paginated } from "../utils/response.js";
 import { logger } from "../utils/logger.js";
 import { speakerManager } from "../services/speaker_manager.js";

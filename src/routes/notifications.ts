@@ -1,4 +1,10 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 通知管理 ──
+ * GET  /notifications           → 通知列表（分页，可按 novel_id / unread 过滤）。
+ * POST /notifications/read      → 标记单条通知已读。
+ * POST /notifications/read-all  → 标记全部通知已读（可选按 novel_id 限定范围）。
+ */
+import type { FastifyInstance } from "fastify";
 import { success, paginated } from "../utils/response.js";
 import { getDb } from "../db/index.js";
 import { PaginationSchema } from "../schemas/common.schema.js";

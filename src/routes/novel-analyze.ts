@@ -1,4 +1,9 @@
-﻿import type { FastifyInstance } from "fastify";
+﻿/**
+ * ── 角色分析 ──
+ * POST /novel/analyze            → 对已有章节做 LLM 角色分析（不注册声音）。
+ * POST /novel/upload-and-analyze → 上传文本 + 解析章节 + 角色分析一站式。
+ */
+import type { FastifyInstance } from "fastify";
 import { parseUploadRequest } from "../utils/request-parser.js";
 import { success, fail, paginated } from "../utils/response.js";
 import { logger } from "../utils/logger.js";
