@@ -1,4 +1,5 @@
 ﻿import { randomUUID } from 'crypto';
+import { DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../constants/index.js';
 
 function formatTimestamp(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -11,11 +12,6 @@ export interface PaginatedList<T> {
   pageSize: number;
   list: T[];
 }
-
-/** 默认分页：第 1 页，每页 10 条，最大 50 条 */
-export const DEFAULT_PAGE_NUM = 1;
-export const DEFAULT_PAGE_SIZE = 10;
-export const MAX_PAGE_SIZE = 50;
 
 export function paginated<T>(
   list: T[],

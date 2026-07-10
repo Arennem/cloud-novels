@@ -1,3 +1,5 @@
+﻿import { ROLE_REGEX, CN_CHAPTER_HEADER, EN_CHAPTER_HEADER, MD_CHAPTER_HEADER, DEFAULT_CHAPTER_TITLE, SPLIT_MAX_LENGTH } from '../constants/index.js';
+
 export interface TextChunk {
   text: string;
   role?: string;
@@ -9,7 +11,6 @@ export interface RawChapter {
 }
 
 export class TextSplitter {
-  private roleRegex = /^\[(.+?)\]\s*(.*)$/;
 
   /**
    * 解析角色标记文本，返回带角色标注的文本块
@@ -19,7 +20,7 @@ export class TextSplitter {
     const chunks: TextChunk[] = [];
 
     for (const line of lines) {
-      const match = line.match(this.roleRegex);
+      const match = line.match(ROLE_REGEX);
       if (match) {
         chunks.push({ role: match[1], text: match[2] });
       } else if (line.trim()) {
@@ -39,7 +40,7 @@ export class TextSplitter {
     for (const chapter of chapters) {
       const lines = chapter.content.split('\n');
       for (const line of lines) {
-        const match = line.match(this.roleRegex);
+        const match = line.match(ROLE_REGEX);
         if (match) {
           names.add(match[1]);
         }
@@ -66,9 +67,6 @@ export class TextSplitter {
     let current: { title: string; contentLines: string[] } | null = null;
 
     // ── 规则链 ──
-    const cnHeader = /^#{0,3}\s*第[零一二三四五六七八九十百千\d]+[章节回部卷篇集幕][：:\s]*(.*)$/;
-    const enHeader = /^#{0,3}\s*(Chapter|Part|Section|Volume|Act|Ch\.?)\s+\d+[：:\s]*(.*)$/i;
-    const mdHeader = /^#{1,4}\s+(.+)$/;
 
     for (const rawLine of lines) {
       const trimmed = rawLine.trim();
@@ -79,9 +77,9 @@ export class TextSplitter {
         continue;
       }
 
-      const cnMatch = trimmed.match(cnHeader);
-      const enMatch = !cnMatch && trimmed.match(enHeader);
-      const mdMatch = !cnMatch && !enMatch && trimmed.match(mdHeader);
+      const cnMatch = trimmed.match(CN_CHAPTER_HEADER);
+      const enMatch = !cnMatch && trimmed.match(EN_CHAPTER_HEADER);
+      const mdMatch = !cnMatch && !enMatch && trimmed.match(MD_CHAPTER_HEADER);
 
       if (cnMatch || enMatch) {
         if (current) chapters.push(current);
@@ -91,7 +89,7 @@ export class TextSplitter {
         current = { title: mdMatch[1].trim(), contentLines: [] };
       } else {
         if (!current) {
-          current = { title: '正文', contentLines: [] };
+          current = { title: DEFAULT_CHAPTER_TITLE, contentLines: [] };
         }
         current.contentLines.push(rawLine);
       }
@@ -108,7 +106,7 @@ export class TextSplitter {
   /**
    * 将长文本按最大字数分片
    */
-  splitByLength(text: string, maxLength: number = 500): string[] {
+  splitByLength(text: string, maxLength: number = SPLIT_MAX_LENGTH): string[] {
     const chunks: string[] = [];
     let start = 0;
     while (start < text.length) {

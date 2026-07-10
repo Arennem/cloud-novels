@@ -1,11 +1,9 @@
-﻿import type { TtsRequest } from '../schemas/tts.schema.js';
+﻿import { DASHSCOPE_COSYVOICE_URL, VOICE_DESIGN_URL, WS_URL, SAMPLE_RATE, WS_TIMEOUT_MS, MAX_VOICE_PROMPT_LENGTH } from '../constants/index.js';
+import type { TtsRequest } from '../schemas/tts.schema.js';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import WebSocket from 'ws';
 
-const DASHSCOPE_COSYVOICE_URL = 'https://dashscope.aliyuncs.com/api/v1/services/tts/cosyvoice';
-const VOICE_DESIGN_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/tts/customization';
-const WS_URL = 'wss://dashscope.aliyuncs.com/api-ws/v1/inference';
 
 interface CosyVoiceResponse {
   output?: {
@@ -78,9 +76,9 @@ export class CosyVoiceService {
       throw new Error('DASHSCOPE_API_KEY 未配置');
     }
 
-    if (voicePrompt.length > 500) {
-      logger.warn('voice_prompt 超过 500 字符，将被截断', { length: voicePrompt.length });
-      voicePrompt = voicePrompt.slice(0, 500);
+    if (voicePrompt.length > MAX_VOICE_PROMPT_LENGTH) {
+      logger.warn('voice_prompt 超过 ' + MAX_VOICE_PROMPT_LENGTH + ' 字符，将被截断', { length: voicePrompt.length });
+      voicePrompt = voicePrompt.slice(0, MAX_VOICE_PROMPT_LENGTH);
     }
 
     logger.info('声音设计：开始创建自定义音色', { prefix, prompt: voicePrompt.slice(0, 60) });

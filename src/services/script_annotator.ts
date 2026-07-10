@@ -2,59 +2,12 @@
 import { chat } from "./llm.js";
 import { ChapterAnnotationSchema } from "../schemas/annotation.schema.js";
 import { ZodError } from "zod";
+import { SCRIPT_ANNOTATOR_PROMPT, MAX_RETRIES } from '../constants/index.js';
 
 /* ───────── 系统提示 ───────── */
 
-const SYSTEM_PROMPT = `你是一个小说脚本标注专家。你的任务是将小说章节文本解析为结构化的脚本格式，标注每一段的说话角色和情绪。
-
-# 核心规则
-
-1. **分段原则**：以自然段落或对话轮次为单位切分。同一角色连续的几句话合并为一个片段。叙述性文字按段落切分。
-
-2. **说话人识别**：
-   - 对话内容前面有「某某说」「某某道」「某某问」等提示词的，说话人取提示词中的人物名
-   - 直接引语（引号内对话）根据上下文推断说话人
-   - 无法确定说话人的对话标为 "旁白"
-   - 纯叙述、描写、心理活动标为 "旁白"
-
-3. **情绪推断**（仅对话片段需要，旁白不传 emotion）：
-   - happy：开心、兴奋、愉快
-   - sad：悲伤、失落、哀伤
-   - angry：愤怒、生气、恼怒
-   - surprise：惊讶、意外
-   - calm：平静、淡然、从容
-   - default：中性语气，无明显情绪
-   - 从对话内容和上下文描写中推断
-
-4. **文本保留**：保持原文完整，包括引号、标点符号、语气词。
-
-# 输出格式
-
-返回一个 JSON 对象，格式如下：
-
-{
-  "segments": [
-    {
-      "speaker": "旁白",
-      "text": "叙述段落原文..."
-    },
-    {
-      "speaker": "角色名",
-      "text": "\"对话原文\"",
-      "emotion": "推断的情绪"
-    }
-  ]
-}
-
-注意：
-- 只返回 JSON，不要包含 \`\`\`json 标记或其他文字
-- segments 数组不能为空
-- 必须严格按照上述 JSON Schema 输出
-- emotion 字段只能取以下值：happy, sad, angry, surprise, calm, neutral
-`;
 
 /* ───────── 最大重试次数 ───────── */
-const MAX_RETRIES = 2;
 
 export class ScriptAnnotator {
   /**
@@ -70,7 +23,7 @@ export class ScriptAnnotator {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         const raw = await chat({
-          system: SYSTEM_PROMPT,
+          system: SCRIPT_ANNOTATOR_PROMPT,
           user: userPrompt,
           temperature: 0.1,
           maxTokens: 8192,

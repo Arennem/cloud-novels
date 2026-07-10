@@ -19,6 +19,7 @@ import { novelSpeakerRoutes } from "./routes/novel-speaker.js";
 import { novelAudioRoutes } from "./routes/novel-audio.js";
 import { healthRoutes } from "./routes/health.js";
 import { notificationRoutes } from "./routes/notifications.js";
+import { APP_TITLE, APP_DESCRIPTION, APP_VERSION, APP_SERVER_URL, APP_SERVER_DESCRIPTION, SWAGGER_TAGS, UPLOAD_FILE_SIZE_LIMIT } from './constants/index.js';
 
 async function main() {
   ensureDir(config.OUTPUT_DIR);
@@ -27,7 +28,7 @@ async function main() {
   const app = Fastify({ logger: false });
   await app.register(cors);
   await app.register(multipart, {
-    limits: { fileSize: 50 * 1024 * 1024 },
+    limits: { fileSize: UPLOAD_FILE_SIZE_LIMIT },
     attachFieldsToBody: true,
   });
   await app.register(fastifyStatic, {
@@ -47,17 +48,17 @@ async function main() {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: "Cloud Novels API",
-        description: "小说文本转语音服务 — 基于 Fastify + Zod + 阿里云百炼 CosyVoice",
-        version: "0.1.0",
+        title: APP_TITLE,
+        description: APP_DESCRIPTION,
+        version: APP_VERSION,
       },
-      servers: [{ url: "http://localhost:3000", description: "开发服务器" }],
+      servers: [{ url: APP_SERVER_URL, description: APP_SERVER_DESCRIPTION }],
       tags: [
-        { name: "novel", description: "小说管理 & 合成管线" },
-        { name: "tts", description: "单段 TTS 语音合成" },
-        { name: "voice", description: "音色管理" },
-        { name: "character", description: "角色声音管理" },
-        { name: "system", description: "系统 & 健康检查" },
+        SWAGGER_TAGS[0],
+        SWAGGER_TAGS[1],
+        SWAGGER_TAGS[2],
+        SWAGGER_TAGS[3],
+        SWAGGER_TAGS[4],
       ],
     },
   });

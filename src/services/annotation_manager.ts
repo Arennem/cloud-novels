@@ -4,6 +4,7 @@ import { logger } from "../utils/logger.js";
 import { scriptAnnotator } from "./script_annotator.js";
 import { computeContentHash } from "./audio_cache.js";
 import { ChapterAnnotationSchema } from "../schemas/annotation.schema.js";
+import { MAX_RETRIES } from '../constants/index.js';
 
 /* ───────── 行类型 ───────── */
 interface AnnotationRow {
@@ -30,7 +31,6 @@ export interface AnnotationResult {
 }
 
 /* ───────── 常量 ───────── */
-const MAX_RETRIES = 2;
 
 export class AnnotationManager {
   /**

@@ -1,6 +1,6 @@
 ﻿import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
-import { DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/response.js';
+import { DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../constants/index.js';
 import { logger } from '../utils/logger.js';
 
 export interface NovelRecord {

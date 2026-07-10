@@ -1,6 +1,6 @@
+﻿import { WAV_HEADER_SIZE } from '../constants/index.js';
 import { logger } from '../utils/logger.js';
 
-const WAV_HEADER_SIZE = 44;
 
 export class AudioMerger {
   /**

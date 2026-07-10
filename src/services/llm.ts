@@ -1,8 +1,8 @@
+﻿import { DASHSCOPE_LLM_BASE_URL } from '../constants/index.js';
 import OpenAI from 'openai';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 
-const DASHSCOPE_BASE_URL = 'https://ws-3fa17bric37i3kmu.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
 
 let client: OpenAI | null = null;
 
@@ -14,9 +14,9 @@ function getClient(): OpenAI {
     }
     client = new OpenAI({
       apiKey,
-      baseURL: DASHSCOPE_BASE_URL,
+      baseURL: DASHSCOPE_LLM_BASE_URL,
     });
-    logger.info('LLM client 初始化', { baseURL: DASHSCOPE_BASE_URL });
+    logger.info('LLM client 初始化', { baseURL: DASHSCOPE_LLM_BASE_URL });
   }
   return client;
 }

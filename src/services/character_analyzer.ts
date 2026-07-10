@@ -3,8 +3,8 @@ import { logger } from "../utils/logger.js";
 import { chat } from "./llm.js";
 import type { CharacterAnalysisResult, CharacterPortrait } from "../schemas/character.schema.js";
 import { CharacterAnalysisResultSchema } from "../schemas/character.schema.js";
+import { CHARACTER_ANALYZER_PROMPT, ROLE_REGEX } from '../constants/index.js';
 
-const ROLE_REGEX = /^\[(.+?)\]\s*(.*)$/;
 
 // ── 文本压缩：只保留对话行及紧邻上下文 ────────────────
 
@@ -53,38 +53,6 @@ export interface CharacterAnalysisRequest {
   existingCharacters?: string[];
 }
 
-const systemLines = [
-  '你是一个专业的小说角色分析专家。你的任务是分析小说文本，提取每个角色的详细特征。',
-  '',
-  '分析要求：',
-  '1. 仔细阅读所有章节，找出所有有台词的角色（包括旁白）',
-  '2. [角色名] 标记代表该角色的台词，上下文的描述和动作也提供角色特征',
-  '3. 根据角色的台词内容、其他角色对他的描述、作者旁白等，综合分析角色特征',
-  '',
-  '请严格按照以下 JSON 格式返回：',
-  '',
-  '{',
-  '  "characters": [',
-  '    {',
-  '      "name": "角色名",',
-  '      "gender": "male" | "female" | "unknown",',
-  '      "age": "年龄描述",',
-  '      "height": "身高体型描述",',
-  '      "build": "体态描述",',
-  '      "personality": ["性格标签1", "性格标签2"],',
-  '      "voice_description": "声音特征描述（30字左右，详细描述音色、音调、质感，用于语音合成）",',
-  '      "speaking_style": "说话风格描述",',
-  '      "backstory_summary": "角色简介"',
-  '    }',
-  '  ]',
-  '}',
-  '',
-  '注意：',
-  '- voice_description 要具体到音色质感，如"低沉浑厚的青年男声，略带磁性，语气沉稳有力"',
-  '- 只返回 JSON，不要其他文字',
-  '- 如果小说中没有明确提到某个特征，根据台词和上下文合理推断',
-];
-const systemPrompt = systemLines.join('\n');
 
 export class CharacterAnalyzer {
   async analyze(params: CharacterAnalysisRequest): Promise<CharacterAnalysisResult> {
@@ -94,7 +62,7 @@ export class CharacterAnalyzer {
     });
     try {
       const content = await chat({
-        system: systemPrompt,
+        system: CHARACTER_ANALYZER_PROMPT,
         user: buildUserPrompt(params.chapters),
         temperature: 0.3,
         maxTokens: 4096,

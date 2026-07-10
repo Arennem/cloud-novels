@@ -1,4 +1,7 @@
-﻿export const SCHEMA_SQL = `
+﻿import { MALE_VOICES, FEMALE_VOICES, ALL_VOICES, NARRATION_ROLE_NAME, NARRATION_VOICE } from '../constants/index.js';
+export { MALE_VOICES, FEMALE_VOICES, ALL_VOICES, NARRATION_ROLE_NAME, NARRATION_VOICE };
+
+export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS novels (
   id         TEXT PRIMARY KEY,
   title      TEXT NOT NULL UNIQUE,
@@ -54,7 +57,6 @@ CREATE TABLE IF NOT EXISTS audio_cache (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_audio_cache_novel ON audio_cache(novel_id, chapter_title);
-
 
 CREATE TABLE IF NOT EXISTS synthesis_tasks (
   id                 TEXT PRIMARY KEY,
@@ -136,16 +138,4 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_novel ON notifications(novel_id, is_read, created_at);
 
-
 `;
-
-export const MALE_VOICES   = ['longfei', 'longchuan', 'longgang', 'longyu', 'xiaofeng', 'longshuo'];
-export const FEMALE_VOICES = ['longmiao', 'longhua', 'longyao', 'longxiaochun'];
-export const ALL_VOICES    = [...MALE_VOICES, ...FEMALE_VOICES];
-
-/** 旁白角色名及固定音色，不经过大模型分析和 CosyVoice speaker 注册 */
-export const NARRATION_ROLE_NAME = '旁白';
-export const NARRATION_VOICE     = 'longxiaochun';
-
-
-
